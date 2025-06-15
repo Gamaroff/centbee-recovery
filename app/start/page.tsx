@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useState } from "react"
 import { importWallet, WalletClient } from "@/lib/wallet/walletClient"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import { Textarea } from "@/components/ui/textarea"
 import { useRouter } from "next/navigation"
 
@@ -13,7 +13,6 @@ export default function StartPage() {
   const [mnemonic, setMnemonic] = useState('')
   const [pin, setPin] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const { toast } = useToast()
   const router = useRouter()
 
   const handleImportWallet = async () => {
@@ -32,11 +31,10 @@ export default function StartPage() {
       router.push('/')
     } catch (error) {
       console.error(error)
-      toast({
-        variant: "destructive",
-        title: "Invalid mnemonic",
-        description: error instanceof Error ? error.message : "Please check your recovery phrase and try again"
-      })
+      toast.error(
+        "Invalid mnemonic",
+        { description: error instanceof Error ? error.message : "Please check your recovery phrase and try again" }
+      )
     } finally {
       setIsLoading(false)
     }

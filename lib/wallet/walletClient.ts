@@ -60,7 +60,7 @@ export class WalletClient {
     return this.hdPrivateKey.toPublic().toString()
   }
 
-  async sendAll(utxos: Utxo[], destinationAddress: string): Promise<void> {
+  async sendAll(utxos: Utxo[], destinationAddress: string): Promise<string> {
     if (!utxos.length) {
       throw new Error('No UTXOs provided')
     }
@@ -104,6 +104,7 @@ export class WalletClient {
     await tx.fee()
     await tx.sign()
     await tx.broadcast(new Bitails('main'));
+    return tx.id('hex')
   }
 }
 

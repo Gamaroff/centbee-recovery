@@ -1,38 +1,24 @@
 'use client'
 
+import React, { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { InfoIcon, LogOutIcon, RefreshCwIcon, Send, WalletIcon } from "lucide-react"
+import { InfoIcon, RefreshCwIcon, Send, WalletIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Utxo, WalletClient, clearWallet, getWallet, importWallet, syncWallet } from "@/lib/wallet/walletClient"
-import { toast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
-interface Props {
-}
-
-export default function Wallet({ }: Props) {
+export default function Wallet() {
     const router = useRouter()
-    const [isExportWalletOpen, setIsExportWalletOpen] = useState(false)
     const [isSending, setIsSending] = useState(false)
     const [isSyncing, setIsSyncing] = useState(false)
     const [utxos, setUtxos] = useState<Utxo[]>([])
     const [destinationAddress, setDestinationAddress] = useState('')
     const [satoshisBalance, setSatoshisBalance] = useState(0)
 
-    useEffect(() => {
-        const storedMnemonic = localStorage.getItem('wallet_mnemonic')
-        if (!storedMnemonic || !WalletClient.validateMnemonic(storedMnemonic)) {
-            router.push('/start')
-            return
-        }
-        importWallet(storedMnemonic, localStorage.getItem('wallet_pin') || '')
-        syncWalletStatus()
-    }, [])
-
-    const syncWalletStatus = async () => {
+    const syncWalletStatus = useCallback(async () => {
         if (isSyncing) {
             return
         }
@@ -44,15 +30,23 @@ export default function Wallet({ }: Props) {
             setSatoshisBalance(utxos.reduce((acc, utxo) => acc + utxo.satoshis, 0))
         } catch (error) {
             console.error(error)
-            await toast({
-                title: "Error syncing wallet",
-                variant: "destructive",
+            toast.error("Error syncing wallet", {
                 description: error instanceof Error ? error.message : "An unexpected error occurred"
             })
         } finally {
             setIsSyncing(false)
         }
-    }
+    }, [isSyncing])
+
+    useEffect(() => {
+        const storedMnemonic = localStorage.getItem('wallet_mnemonic')
+        if (!storedMnemonic || !WalletClient.validateMnemonic(storedMnemonic)) {
+            router.push('/start')
+            return
+        }
+        importWallet(storedMnemonic, localStorage.getItem('wallet_pin') || '')
+        syncWalletStatus()
+    }, [router, syncWalletStatus])
 
     const onChangeDestinationAddress = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value
@@ -62,17 +56,20 @@ export default function Wallet({ }: Props) {
     const sendAll = async () => {
         setIsSending(true)
         try {
-            await getWallet()?.sendAll(utxos, destinationAddress)
-            toast({
-                title: "Transaction sent",
-                description: "Your transaction has been sent successfully"
+            const txid = await getWallet()?.sendAll(utxos, destinationAddress)
+            toast("Transaction sent", {
+                description: "Your transaction has been sent successfully",
+                action: {
+                    label: "View",
+                    onClick: () => {
+                        window.open(`https://whatsonchain.com/tx/${txid}`, '_blank')
+                    }
+                }
             })
             syncWalletStatus()
         } catch (error) {
             console.error(error)
-            toast({
-                title: "Error sending transaction",
-                variant: "destructive",
+            toast.error("Error sending transaction", {
                 description: error instanceof Error ? error.message : "An unexpected error occurred"
             })
         } finally {
