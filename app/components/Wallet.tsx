@@ -110,7 +110,7 @@ export default function Wallet({ }: Props) {
                                 <InfoIcon className="h-4 w-4" />
                                 <AlertTitle>Send your funds to another BSV wallet</AlertTitle>
                                 <AlertDescription className="text-xs text-muted-foreground">
-                                    Don't have another BSV wallet? <a href="https://market.handcash.io/" target="_blank" className="text-accent-foreground underline">Create one</a>
+                                    {"Don't have another BSV wallet?"} <a href="https://market.handcash.io/" rel="noreferrer" target="_blank" className="text-accent-foreground underline">Create one</a>
                                 </AlertDescription>
                             </Alert>
                             <div className="flex flex-col gap-3 mt-8 mb-6">
@@ -130,7 +130,7 @@ export default function Wallet({ }: Props) {
                             <CardTitle className="text-2xl font-bold"><span className="pr-2">🎉</span> Migration Completed</CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <p className="text-sm text-muted-foreground">You don't have any funds in this wallet.</p>
+                            <p className="text-sm text-muted-foreground">{"You don't have any funds in this wallet."}</p>
                         </CardContent>
                     </Card>
                 )}
