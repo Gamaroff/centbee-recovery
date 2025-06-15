@@ -60,6 +60,9 @@ export default function StartPage() {
               placeholder="Enter your PIN code"
               value={pin}
               type="password"
+              autoComplete="off"
+              readOnly={true}
+              onFocus={(e) => e.target.removeAttribute('readonly')}
               maxLength={4}
               minLength={4}
               onChange={(e) => setPin(e.target.value)}

@@ -36,17 +36,18 @@ export default function Wallet() {
         } finally {
             setIsSyncing(false)
         }
-    }, [isSyncing])
+    }, [])
 
     useEffect(() => {
         const storedMnemonic = localStorage.getItem('wallet_mnemonic')
-        if (!storedMnemonic || !WalletClient.validateMnemonic(storedMnemonic)) {
+        const storedPin = localStorage.getItem('wallet_pin')
+        if (!storedMnemonic || !WalletClient.validateMnemonic(storedMnemonic) || !storedPin) {
             router.push('/start')
             return
         }
-        importWallet(storedMnemonic, localStorage.getItem('wallet_pin') || '')
+        importWallet(storedMnemonic, storedPin)
         syncWalletStatus()
-    }, [router, syncWalletStatus])
+    }, [])
 
     const onChangeDestinationAddress = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value
