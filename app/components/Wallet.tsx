@@ -80,7 +80,7 @@ export default function Wallet() {
 
     return (
         <>
-            <div className="min-h-screen flex flex-col items-center mt-12 p-4 gap-6">
+            <div className="flex flex-col items-center mt-12 p-4 gap-6">
                 <Card className="w-full max-w-md bg-accent">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0">
                         <CardTitle className="text-2xl font-bold"><span className="pr-2">💰</span> My Wallet</CardTitle>

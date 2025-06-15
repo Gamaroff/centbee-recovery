@@ -8,75 +8,103 @@ import { importWallet, WalletClient } from "@/lib/wallet/walletClient"
 import { toast } from "sonner"
 import { Textarea } from "@/components/ui/textarea"
 import { useRouter } from "next/navigation"
+import { cn } from "@/lib/utils"
 
 export default function StartPage() {
   const [mnemonic, setMnemonic] = useState('')
+  const [mnemonicError, setMnemonicError] = useState(false)
   const [pin, setPin] = useState('')
+  const [pinError, setPinError] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
 
   const handleImportWallet = async () => {
     try {
       setIsLoading(true)
-      if (!WalletClient.validateMnemonic(mnemonic)) {
-        throw new Error('Invalid mnemonic phrase')
+      const mnemonicError = !WalletClient.validateMnemonic(mnemonic.trim())
+      setMnemonicError(mnemonicError)
+      const pinError = pin.length !== 4 || !/^\d+$/.test(pin)
+      console.log(pin.length !== 4, !/^\d+$/.test(pin))
+      setPinError(pinError)
+
+      if (pinError || mnemonicError) {
+        return
       }
 
-      // Import wallet locally
-      const wallet = importWallet(mnemonic, pin)
+      await importWallet(mnemonic, pin)
 
-      // Store mnemonic and redirect
       localStorage.setItem('wallet_mnemonic', mnemonic)
       localStorage.setItem('wallet_pin', pin)
       router.push('/')
     } catch (error) {
       console.error(error)
       toast.error(
-        "Invalid mnemonic",
-        { description: error instanceof Error ? error.message : "Please check your recovery phrase and try again" }
+        "Invalid parameters",
+        { description: "Please check your recovery phrase and pin code" }
       )
     } finally {
       setIsLoading(false)
     }
   }
 
+  const handleMnemonicChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const mnemonic = e.target.value;
+    setMnemonic(mnemonic.trim())
+  }
+
   return (
-    <div className="min-h-screen flex flex-col items-center mt-12 p-4 gap-6">
+    <div className="flex flex-col items-center mt-12 p-4 gap-6">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Welcome to CentBee Recovery</CardTitle>
+          <CardTitle>Welcome to Centbee Recovery</CardTitle>
           <CardDescription>
             Restore your wallet to send the funds to a new wallet.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-4">
-            <Textarea
-              placeholder="Enter your 12-word recovery phrase"
-              value={mnemonic}
-              onChange={(e) => setMnemonic(e.target.value)}
-            />
-            <Input
-              placeholder="Enter your PIN code"
-              value={pin}
-              type="password"
-              autoComplete="off"
-              readOnly={true}
-              onFocus={(e) => e.target.removeAttribute('readonly')}
-              maxLength={4}
-              minLength={4}
-              onChange={(e) => setPin(e.target.value)}
-            />
-            <div className="flex gap-2">
-              <Button
-                className="flex-1"
-                onClick={handleImportWallet}
-                disabled={isLoading}
-              >
-                {isLoading ? "Importing..." : "Import"}
-              </Button>
+          <form onSubmit={(e) => {
+            e.preventDefault()
+          }}>
+            <div className="space-y-4">
+              <div className="flex flex-col gap-1.5">
+                <Textarea
+                  placeholder="Enter your 12-word recovery phrase from Centbee"
+                  value={mnemonic}
+                  required
+                  onChange={handleMnemonicChange}
+                  className={cn(mnemonicError ? "border-destructive" : "")}
+                />
+                {mnemonicError && (
+                  <p className="text-xs pl-3 text-destructive flex items-center gap-1.5">
+                    Invalid recovery phrase
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Input
+                  placeholder="Enter your PIN code"
+                  value={pin}
+                  type="password"
+                  autoComplete="off"
+                  required
+                  maxLength={4}
+                  onChange={(e) => setPin(e.target.value)}
+                />
+                <p className={cn("text-xs pl-3 flex items-center gap-1.5", pinError ? "text-destructive" : "text-muted-foreground")}>
+                  {pinError ? "Enter a 4-digit PIN code" : "Entering a wrong PIN will result in missing funds"}
+                </p>
+              </div>
+              <div className="flex gap-2 pt-4">
+                <Button
+                  className="flex-1"
+                  onClick={handleImportWallet}
+                  disabled={isLoading}
+                >
+                  {isLoading ? "Restoring..." : "Restore"}
+                </Button>
+              </div>
             </div>
-          </div>
+          </form>
         </CardContent>
       </Card>
     </div>
