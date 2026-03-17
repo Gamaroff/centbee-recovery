@@ -49,7 +49,7 @@ export default function StartPage() {
 
   const handleMnemonicChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const mnemonic = e.target.value;
-    setMnemonic(mnemonic.trim())
+    setMnemonic(mnemonic.trim().toLowerCase())
   }
 
   return (
