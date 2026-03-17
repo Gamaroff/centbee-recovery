@@ -1,4 +1,5 @@
 import { BroadcastFailure, BroadcastResponse, Transaction, Broadcaster } from '@bsv/sdk'
+import { Utxo } from './types/utxo'
 
 /**
  * Represents an Bitails transaction broadcaster.
@@ -14,12 +15,12 @@ export default class Bitails implements Broadcaster {
      */
     constructor(network: 'main' | 'test') {
         this.network = network
-        this.URL = `https://api.bitails.io/tx/broadcast`
+        this.URL = `https://api.bitails.io`
     }
 
     /**
      * Broadcasts a transaction via Bitails.
-     * This method will assume that window.fetch is available
+     * https://docs.bitails.io/#send-raw-transaction
      *
      * @param {Transaction} tx - The transaction to be broadcasted.
      * @returns {Promise<BroadcastResponse | BroadcastFailure>} A promise that resolves to either a success or failure response.
@@ -38,8 +39,7 @@ export default class Bitails implements Broadcaster {
         try {
             let data: any = {}
 
-            // Use fetch in a browser environment
-            const response = await window.fetch(`${this.URL}`, requestOptions)
+            const response = await window.fetch(`${this.URL}/tx/broadcast`, requestOptions)
             data = await response.json()
 
             if (data.error) {
@@ -63,4 +63,54 @@ export default class Bitails implements Broadcaster {
             description: 'Unknown error',
         } as BroadcastFailure
     }
+
+    /**
+     * Fetches a raw transaction from Bitails.
+     * https://docs.bitails.io/#download-transaction
+     *
+     * @param {string} txid - The transaction id.
+     * @returns {Promise<string>} A promise that resolves to the raw transaction.
+     */
+    async fetchRawTx(txid: string): Promise<string> {
+        const response = await window.fetch(`${this.URL}/download/tx/${txid}/hex`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/gzip'
+          }
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to fetch raw transaction: ${response.statusText}`);
+        }
+        const data = await response.arrayBuffer()
+        const rawTx = new TextDecoder().decode(data)
+        return rawTx;
+      }
+
+      /**
+     * Fetches utxos for a list of addresses from Bitails.
+     * https://docs.bitails.io/#get-unspent-of-address
+     *
+     * @param {string[]} addresses - The list of addresses.
+     * @returns {Promise<Utxo[]>} A promise that resolves to the list of utxos.
+     */
+      async fetchUtxosForAddress(addresses: string[]): Promise<Utxo[]> {
+        const response = await window.fetch(`${this.URL}/address/unspent/multi`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ addresses })
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to fetch utxos for addresses ${addresses}: ${response.statusText}`);
+        }
+        const data = await response.json()
+        return data.map((item: any) => item.unspent.map((utxo: any): Utxo => ({
+          address: item.address,
+          txid: utxo.txid,
+          vout: utxo.vout,
+          satoshis: utxo.satoshis,
+          height: utxo.blockheight,
+        }))).flat()
+      }
 }

@@ -1,28 +1,27 @@
 'use client'
 
-import { HD, Mnemonic, Transaction, P2PKH } from '@bsv/sdk'
+import { HD, Mnemonic, Transaction, P2PKH, SatoshisPerKilobyte } from '@bsv/sdk'
 import Bitails from './Bitails'
 import { WalletCache } from './walletCache'
+import { Utxo } from './types/utxo'
 
-export interface Utxo {
-  address: string
-  txid: string
-  vout: number
-  satoshis: number
-  height: number
-  derivationPath?: string
-}
+const FEE_RATE_IN_SATOSHIS_PER_BYTE = 100
+const FEE_PER_P2PKH_INPUT = 148
+const FEE_PER_P2PKH_OUTPUT = 34
+const FEE_OVERHEAD = 10
 
 
 export class WalletClient {
   private hdPrivateKey: HD
   private mnemonic: string
-  private cache: WalletCache;
-
+  private cache: WalletCache
+  private bitails: Bitails
+  
   private constructor(hdPrivateKey: HD, mnemonic: string) {
     this.hdPrivateKey = hdPrivateKey
     this.mnemonic = mnemonic
     this.cache = new WalletCache()
+    this.bitails = new Bitails('main')
   }
 
   static createNew(): WalletClient {
@@ -60,21 +59,23 @@ export class WalletClient {
     return this.hdPrivateKey.toPublic().toString()
   }
 
+  async fetchUtxosForAddress(addresses: string[]): Promise<Utxo[]> {
+    return this.bitails.fetchUtxosForAddress(addresses)
+  }
+
   async sendAll(utxos: Utxo[], destinationAddress: string): Promise<string> {
     if (!utxos.length) {
       throw new Error('No UTXOs provided')
     }
 
-    // Calculate total input amount
-    const totalInput = utxos.reduce((sum, utxo) => sum + utxo.satoshis, 0)
+    const totalInputInSatoshis = utxos.reduce((sum, utxo) => sum + utxo.satoshis, 0)
+    const totalOutputs = 1
 
-    // Calculate fee (in satoshis per byte)
-    const estimatedSize = utxos.length * 148 + 1 * 34 + 10 // Rough estimate
-    const feeRate = 1 // 1 sat/byte
-    const fee = estimatedSize * feeRate
+    const estimatedSize = utxos.length * FEE_PER_P2PKH_INPUT + totalOutputs * FEE_PER_P2PKH_OUTPUT + FEE_OVERHEAD
+    const fee = estimatedSize * FEE_RATE_IN_SATOSHIS_PER_BYTE
 
-    if (totalInput < fee) {
-      throw new Error('Insufficient funds')
+    if (totalInputInSatoshis < fee) {
+      throw new Error(`Insufficient funds: total input in satoshis is less than the fee (${fee} satoshis)`)
     }
 
     // Create transaction
@@ -84,7 +85,7 @@ export class WalletClient {
     for (const utxo of utxos) {
       let sourceTransaction = this.cache.getTransactionById(utxo.txid)
       if (!sourceTransaction) {
-        const rawTx = await fetchRawTx(utxo.txid)
+        const rawTx = await this.bitails.fetchRawTx(utxo.txid)
         sourceTransaction = Transaction.fromHex(rawTx)
         this.cache.setTransaction(sourceTransaction)
       }
@@ -101,7 +102,7 @@ export class WalletClient {
       change: true,
     })
 
-    await tx.fee()
+    await tx.fee(new SatoshisPerKilobyte(FEE_RATE_IN_SATOSHIS_PER_BYTE * 1000))
     await tx.sign()
     await tx.broadcast(new Bitails('main'));
     return tx.id('hex')
@@ -129,42 +130,6 @@ export function clearWallet(): void {
   walletInstance = null
 }
 
-export async function fetchRawTx(txid: string): Promise<string> {
-  const response = await fetch(`https://api.bitails.io/download/tx/${txid}/hex`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/gzip'
-    }
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to fetch raw transaction: ${response.statusText}`);
-  }
-  const data = await response.arrayBuffer()
-  const rawTx = new TextDecoder().decode(data)
-  return rawTx;
-}
-
-export async function fetchUtxosForAddress(addresses: string[]): Promise<Utxo[]> {
-  const response = await fetch(`https://api.bitails.io/address/unspent/multi`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ addresses })
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to fetch utxos for addresses ${addresses}: ${response.statusText}`);
-  }
-  const data = await response.json()
-  return data.map((item: any) => item.unspent.map((utxo: any): Utxo => ({
-    address: item.address,
-    txid: utxo.txid,
-    vout: utxo.vout,
-    satoshis: utxo.satoshis,
-    height: utxo.blockheight,
-  }))).flat()
-}
-
 export async function syncWallet(gapLimit = 25): Promise<Utxo[]> {
   const results: Utxo[] = []
 
@@ -188,7 +153,7 @@ export async function syncWallet(gapLimit = 25): Promise<Utxo[]> {
       childIndex += gapLimit
 
       await new Promise(resolve => setTimeout(resolve, 200))
-      const utxos = await fetchUtxosForAddress(addresses)
+      const utxos = await wallet.fetchUtxosForAddress(addresses)
       for (const utxo of utxos) {
         results.push({
           ...utxo,
