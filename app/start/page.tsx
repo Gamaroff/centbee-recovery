@@ -8,7 +8,7 @@ import { toast } from "sonner"
 import { Textarea } from "@/components/ui/textarea"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { ShieldCheck, Github, ArrowRight, Loader2, Key, Info, Languages, Lock, Copy, Check, ArrowDown, RefreshCw } from "lucide-react"
+import { ShieldCheck, Github, ArrowRight, Loader2, Key, Info, Languages, Lock, Copy, Check, RefreshCw } from "lucide-react"
 
 type PhraseLanguage = 'english' | 'chinese-simplified'
 
@@ -101,17 +101,15 @@ export default function StartPage() {
         return
       }
 
-      await importWallet(mnemonic, pin)
+      await importWallet(mnemonic.trim(), pin)
 
-      localStorage.setItem('wallet_mnemonic', mnemonic)
+      localStorage.setItem('wallet_mnemonic', mnemonic.trim())
       localStorage.setItem('wallet_pin', pin)
       router.push('/')
     } catch (error) {
       console.error(error)
-      toast.error(
-        "Invalid parameters",
-        { description: "Please check your recovery phrase and pin code" }
-      )
+      const message = error instanceof Error ? error.message : String(error)
+      toast.error("Failed to import wallet", { description: message })
     } finally {
       setIsLoading(false)
     }
@@ -183,7 +181,7 @@ export default function StartPage() {
             <div>
               <p className="text-sm font-medium text-white">Open source</p>
               <p className="text-xs text-white/50 mt-0.5">
-                <a href="https://github.com/Gamaroff/centbee-recovery" rel="noreferrer" target="_blank" className="underline underline-offset-2 hover:text-white/80 transition-colors">
+                <a href="https://github.com/HandCash/centbee-recovery" rel="noreferrer" target="_blank" className="underline underline-offset-2 hover:text-white/80 transition-colors">
                   Audit the code on GitHub
                 </a>{" "}— nothing is hidden.
               </p>
@@ -223,6 +221,9 @@ export default function StartPage() {
               <select
                 value={language}
                 onChange={(e) => {
+                  if (mnemonic.trim() && !window.confirm('Changing language will clear your recovery phrase. Continue?')) {
+                    return
+                  }
                   setLanguage(e.target.value as PhraseLanguage)
                   setMnemonic('')
                   setMnemonicError(false)
@@ -389,7 +390,7 @@ export default function StartPage() {
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
             <p className="text-xs text-muted-foreground leading-relaxed">
               All operations run locally in your browser. Your keys and phrase are never sent to any server.{" "}
-              <a href="https://github.com/Gamaroff/centbee-recovery" rel="noreferrer" target="_blank" className="underline underline-offset-2 hover:text-foreground transition-colors">
+              <a href="https://github.com/HandCash/centbee-recovery" rel="noreferrer" target="_blank" className="underline underline-offset-2 hover:text-foreground transition-colors">
                 View source on GitHub.
               </a>
             </p>

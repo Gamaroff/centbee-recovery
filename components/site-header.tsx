@@ -21,6 +21,16 @@ export function SiteHeader() {
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" asChild>
             <Link
+              href="https://x.com/Centbee"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Centbee on X"
+            >
+              <Icons.x className="h-4 w-4" />
+            </Link>
+          </Button>
+          <Button variant="ghost" size="icon" asChild>
+            <Link
               href={siteConfig.links.github}
               target="_blank"
               rel="noopener noreferrer"

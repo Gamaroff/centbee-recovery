@@ -5,9 +5,13 @@ import { Button } from "@/components/ui/button"
 import { AlertTriangle, ArrowLeft, CheckCircle2, Github, InfoIcon, Key, Loader2, RefreshCw, Send, ShieldCheck, WalletIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { SyncProgress, WalletClient, clearWallet, getWallet, importWallet, syncWallet } from "@/lib/wallet/walletClient"
+import { P2PKH } from "@bsv/sdk"
 import { Utxo } from "@/lib/wallet/types/utxo"
 import { toast } from "sonner"
 import { Input } from "@/components/ui/input"
+
+const SYNC_GAP_LIMIT = 3500
+const SYNC_BATCH_SIZE = 25
 
 export default function Wallet() {
     const router = useRouter()
@@ -30,7 +34,7 @@ export default function Wallet() {
         setScanLog([])
         setRateLimitFailed(false)
         try {
-            const utxos = await syncWallet(3500, 25, (progress) => {
+            const utxos = await syncWallet(SYNC_GAP_LIMIT, SYNC_BATCH_SIZE, (progress) => {
                 setSyncProgress(progress)
                 if (progress.logEntry) {
                     setScanLog(prev => [progress.logEntry!, ...prev])
@@ -39,9 +43,7 @@ export default function Wallet() {
                     setSatoshisBalance(progress.totalSatoshis)
                 }
             })
-            console.log(utxos)
             setUtxos(utxos)
-            setSatoshisBalance(utxos.reduce((acc, utxo) => acc + utxo.satoshis, 0))
             setHasSynced(true)
         } catch (error) {
             console.error(error)
@@ -56,7 +58,7 @@ export default function Wallet() {
         } finally {
             setIsSyncing(false)
         }
-    }, [])
+    }, [isSyncing])
 
     useEffect(() => {
         const storedMnemonic = localStorage.getItem('wallet_mnemonic')
@@ -80,6 +82,14 @@ export default function Wallet() {
     }
 
     const sendAll = async () => {
+        try {
+            new P2PKH().lock(destinationAddress)
+        } catch {
+            toast.error("Invalid destination address", {
+                description: "Please enter a valid BSV address."
+            })
+            return
+        }
         setIsSending(true)
         try {
             const txid = await getWallet()?.sendAll(utxos, destinationAddress)
@@ -149,7 +159,7 @@ export default function Wallet() {
                         <div>
                             <p className="text-sm font-medium text-white">Open source</p>
                             <p className="text-xs text-white/50 mt-0.5">
-                                <a href="https://github.com/Gamaroff/centbee-recovery" rel="noreferrer" target="_blank" className="underline underline-offset-2 hover:text-white/80 transition-colors">
+                                <a href="https://github.com/HandCash/centbee-recovery" rel="noreferrer" target="_blank" className="underline underline-offset-2 hover:text-white/80 transition-colors">
                                     Audit the code on GitHub
                                 </a>{" "}— nothing is hidden.
                             </p>
@@ -296,7 +306,7 @@ export default function Wallet() {
                         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                         <p className="text-xs text-muted-foreground leading-relaxed">
                             All operations run locally in your browser. Your keys and phrase are never sent to any server.{" "}
-                            <a href="https://github.com/Gamaroff/centbee-recovery" rel="noreferrer" target="_blank" className="underline underline-offset-2 hover:text-foreground transition-colors">
+                            <a href="https://github.com/HandCash/centbee-recovery" rel="noreferrer" target="_blank" className="underline underline-offset-2 hover:text-foreground transition-colors">
                                 View source on GitHub.
                             </a>
                         </p>
