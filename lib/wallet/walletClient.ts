@@ -78,8 +78,12 @@ export class WalletClient {
     return this.hdPrivateKey.toPublic().toString()
   }
 
-  async fetchUtxosForAddress(addresses: string[]): Promise<Utxo[]> {
-    return this.bitails.fetchUtxosForAddress(addresses)
+  async fetchUtxosForAddress(
+    addresses: string[],
+    onRateLimit?: (attempt: number, delayMs: number) => void,
+    onRateLimitCleared?: () => void,
+  ): Promise<Utxo[]> {
+    return this.bitails.fetchUtxosForAddress(addresses, onRateLimit, onRateLimitCleared)
   }
 
   /**
@@ -186,38 +190,123 @@ export function clearWallet(): void {
  * @returns All discovered UTXOs with their derivation paths attached
  * @throws If no wallet singleton exists (call `importWallet` first)
  */
-export async function syncWallet(gapLimit = 25): Promise<Utxo[]> {
+export interface SyncProgress {
+  message: string
+  /** Total UTXOs found so far */
+  utxosFound: number
+  /** Total satoshis found so far */
+  totalSatoshis: number
+  /** Total addresses checked so far */
+  totalAddressesScanned: number
+  /** Set after each batch completes — accumulate these in the UI for a scan log */
+  logEntry?: string
+  /** True while waiting on a 429 retry */
+  rateLimited?: boolean
+}
+
+export async function syncWallet(
+  gapLimit = 1000,
+  batchSize = 25,
+  onProgress?: (progress: SyncProgress) => void,
+): Promise<Utxo[]> {
   const results: Utxo[] = []
+  let totalAddressesScanned = 0
 
   const wallet = getWallet()
   if (!wallet) {
     throw new Error('Wallet not found')
   }
 
-  for (const chain of [0, 1]) { // 0 = external, 1 = internal/change
+  const chainLabels: Record<number, string> = { 0: 'receive', 1: 'change' }
+
+  for (const chain of [0, 1]) {
     let childIndex = 0
     const derivationPaths: Record<string, string> = {}
-    let utxosFound = true
-    while (utxosFound) {
-      const addresses = Array.from({ length: gapLimit }, (_, i) => {
+    let consecutiveEmpty = 0
+
+    while (consecutiveEmpty < gapLimit) {
+      const startIndex = childIndex
+      const endIndex = childIndex + batchSize - 1
+
+      onProgress?.({
+        message: `Scanning ${chainLabels[chain]} addresses ${startIndex}–${endIndex} (m/44'/0/${chain}/${startIndex} … m/44'/0/${chain}/${endIndex})…`,
+        utxosFound: results.length,
+        totalSatoshis: results.reduce((s, u) => s + u.satoshis, 0),
+        totalAddressesScanned,
+      })
+
+      const addresses = Array.from({ length: batchSize }, (_, i) => {
         const path = `m/44'/0/${chain}/${childIndex + i}`
         const child = wallet.deriveChild(path)
-        const address = child.pubKey.toAddress().toString();
+        const address = child.pubKey.toAddress().toString()
         derivationPaths[address] = path
         return address
       })
-      childIndex += gapLimit
+      childIndex += batchSize
 
       await new Promise(resolve => setTimeout(resolve, 200))
-      const utxos = await wallet.fetchUtxosForAddress(addresses)
+      const utxos = await wallet.fetchUtxosForAddress(
+        addresses,
+        (attempt, delayMs) => {
+          onProgress?.({
+            message: `Rate limited — retrying in ${delayMs / 1000}s (attempt ${attempt} of 5)…`,
+            utxosFound: results.length,
+            totalSatoshis: results.reduce((s, u) => s + u.satoshis, 0),
+            totalAddressesScanned,
+            rateLimited: true,
+          })
+        },
+        () => {
+          onProgress?.({
+            message: 'Rate limit cleared, continuing scan…',
+            utxosFound: results.length,
+            totalSatoshis: results.reduce((s, u) => s + u.satoshis, 0),
+            totalAddressesScanned,
+            rateLimited: false,
+          })
+        },
+      )
+
+      const addressesWithUtxos = new Set(utxos.map(u => u.address))
+      for (const addr of addresses) {
+        if (addressesWithUtxos.has(addr)) {
+          consecutiveEmpty = 0
+        } else {
+          consecutiveEmpty++
+        }
+      }
+
       for (const utxo of utxos) {
         results.push({
           ...utxo,
           derivationPath: derivationPaths[utxo.address],
         })
       }
-      utxosFound = utxos.length > 0
+
+      totalAddressesScanned += batchSize
+
+      const logEntry = utxos.length > 0
+        ? `✓ ${chainLabels[chain]} [${startIndex}–${endIndex}]: ${utxos.length} UTXO${utxos.length !== 1 ? 's' : ''} found (gap reset)`
+        : `– ${chainLabels[chain]} [${startIndex}–${endIndex}]: empty (${consecutiveEmpty}/${gapLimit} gap)`
+
+      onProgress?.({
+        message: utxos.length > 0
+          ? `Found ${utxos.length} UTXO${utxos.length !== 1 ? 's' : ''}, continuing…`
+          : `No UTXOs in ${chainLabels[chain]} batch (${consecutiveEmpty}/${gapLimit} consecutive empty)`,
+        utxosFound: results.length,
+        totalSatoshis: results.reduce((s, u) => s + u.satoshis, 0),
+        totalAddressesScanned,
+        logEntry,
+      })
     }
   }
+
+  onProgress?.({
+    message: 'Scan complete',
+    utxosFound: results.length,
+    totalSatoshis: results.reduce((s, u) => s + u.satoshis, 0),
+    totalAddressesScanned,
+    logEntry: `Done — ${totalAddressesScanned} addresses scanned, ${results.length} UTXO${results.length !== 1 ? 's' : ''} found`,
+  })
   return results
 }
