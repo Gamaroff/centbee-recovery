@@ -30,6 +30,9 @@ firebase-debug.log
 .env.test.local
 .env.production.local
 
+# typescript
+tsconfig.tsbuildinfo
+
 # turbo
 .turbo
 
