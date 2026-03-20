@@ -15,7 +15,7 @@ export const fontMono = FontMono({
 })
 
 export const fontCJK = FontCJK({
-  subsets: ["chinese-simplified"],
+  subsets: ["latin"],
   weight: ["400", "500", "700"],
   variable: "--font-cjk",
 })

@@ -4,8 +4,12 @@ import { HD, Mnemonic, Transaction, P2PKH, SatoshisPerKilobyte } from '@bsv/sdk'
 import Bitails from './Bitails'
 import { WalletCache } from './walletCache'
 import { Utxo } from './types/utxo'
-import { detectMnemonicLanguage } from './detectMnemonicLanguage'
+import { detectMnemonicLanguage, MnemonicLanguage } from './detectMnemonicLanguage'
 import { chineseSimplifiedWordList } from './wordlists/chinese-simplified'
+import { frenchWordList } from './wordlists/french'
+import { italianWordList } from './wordlists/italian'
+import { japaneseWordList } from './wordlists/japanese'
+import { spanishWordList } from './wordlists/spanish'
 
 const FEE_RATE_IN_SATOSHIS_PER_BYTE = 100
 const FEE_PER_P2PKH_INPUT = 148
@@ -15,14 +19,20 @@ const FEE_OVERHEAD = 10
 const BATCH_REQUEST_DELAY_MS = 200
 
 /**
- * Returns the appropriate wordlist for a mnemonic based on auto-detected language.
- * @param mnemonic - The mnemonic phrase to analyze
- * @returns The wordlist object if Chinese Simplified is detected, undefined for English (uses SDK default)
+ * Returns the appropriate wordlist for a given language.
+ * If no language is provided, auto-detects from the mnemonic content.
+ * Returns undefined for English (uses the SDK's built-in default wordlist).
  */
-function getWordlist(mnemonic: string) {
-  return detectMnemonicLanguage(mnemonic) === 'chinese-simplified'
-    ? chineseSimplifiedWordList
-    : undefined // undefined = use SDK default (English)
+function getWordlist(mnemonic: string, language?: MnemonicLanguage) {
+  const lang = language ?? detectMnemonicLanguage(mnemonic)
+  switch (lang) {
+    case 'chinese-simplified': return chineseSimplifiedWordList
+    case 'french': return frenchWordList
+    case 'italian': return italianWordList
+    case 'japanese': return japaneseWordList
+    case 'spanish': return spanishWordList
+    default: return undefined // undefined = use SDK default (English)
+  }
 }
 
 export class WalletClient {
@@ -44,11 +54,11 @@ export class WalletClient {
     return new WalletClient(hdPrivateKey, mnemonic.toString())
   }
 
-  static fromMnemonic(mnemonicString: string, pin: string): WalletClient {
-    if (!WalletClient.validateMnemonic(mnemonicString)) {
+  static fromMnemonic(mnemonicString: string, pin: string, language?: MnemonicLanguage): WalletClient {
+    if (!WalletClient.validateMnemonic(mnemonicString, language)) {
       throw new Error('Invalid mnemonic')
     }
-    const wordlist = getWordlist(mnemonicString)
+    const wordlist = getWordlist(mnemonicString, language)
     const mnemonic = wordlist
       ? new Mnemonic(mnemonicString, undefined, wordlist)
       : Mnemonic.fromString(mnemonicString)
@@ -56,9 +66,9 @@ export class WalletClient {
     return new WalletClient(hdPrivateKey, mnemonicString)
   }
 
-  static validateMnemonic(mnemonic: string): boolean {
+  static validateMnemonic(mnemonic: string, language?: MnemonicLanguage): boolean {
     try {
-      const wordlist = getWordlist(mnemonic)
+      const wordlist = getWordlist(mnemonic, language)
       const m = wordlist
         ? new Mnemonic(mnemonic, undefined, wordlist)
         : new Mnemonic(mnemonic)
@@ -152,7 +162,10 @@ export class WalletClient {
 
     await tx.fee(new SatoshisPerKilobyte(FEE_RATE_IN_SATOSHIS_PER_BYTE * 1000))
     await tx.sign()
-    await tx.broadcast(new Bitails());
+    const broadcastResult = await tx.broadcast(this.bitails)
+    if ('code' in broadcastResult) {
+      throw new Error(`Broadcast failed: ${broadcastResult.description}`)
+    }
     return tx.id('hex')
   }
 }
@@ -169,8 +182,8 @@ export function createWallet(): WalletClient {
   return walletInstance
 }
 
-export function importWallet(mnemonic: string, pin: string): WalletClient {
-  walletInstance = WalletClient.fromMnemonic(mnemonic, pin)
+export function importWallet(mnemonic: string, pin: string, language?: MnemonicLanguage): WalletClient {
+  walletInstance = WalletClient.fromMnemonic(mnemonic, pin, language)
   return walletInstance
 }
 
@@ -220,9 +233,15 @@ export async function syncWallet(
   const results: Utxo[] = []
   let totalAddressesScanned = 0
 
-  const wallet = getWallet()
+  let wallet = getWallet()
   if (!wallet) {
-    throw new Error('Wallet not found')
+    const storedMnemonic = localStorage.getItem('wallet_mnemonic')
+    const storedPin = localStorage.getItem('wallet_pin')
+    if (storedMnemonic && storedPin) {
+      wallet = importWallet(storedMnemonic, storedPin)
+    } else {
+      throw new Error('Wallet not found')
+    }
   }
 
   const chainLabels: Record<number, string> = { 0: 'receive', 1: 'change' }

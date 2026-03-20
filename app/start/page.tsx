@@ -8,9 +8,9 @@ import { toast } from "sonner"
 import { Textarea } from "@/components/ui/textarea"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { ShieldCheck, Github, ArrowRight, Loader2, Key, Info, Languages, Lock, Copy, Check, RefreshCw } from "lucide-react"
+import { ShieldCheck, Github, ArrowRight, Loader2, Key, Info, Languages, Lock, Copy, Check, RefreshCw, ArrowDown } from "lucide-react"
 
-type PhraseLanguage = 'english' | 'chinese-simplified'
+type PhraseLanguage = 'english' | 'chinese-simplified' | 'french' | 'italian' | 'japanese' | 'spanish'
 
 function Tooltip({ text }: { text: string }) {
   return (
@@ -42,6 +42,30 @@ const LANGUAGE_CONFIG: Record<PhraseLanguage, {
     hint: '12 Chinese characters separated by spaces',
     example: '的 一 是 了 我…',
   },
+  french: {
+    label: 'Français (French)',
+    placeholder: 'e.g. abaisser abandon abdiquer abeille abolir aborder aboutir aboyer abrasif abreuver abriter abroger',
+    hint: '12 lowercase French words separated by spaces',
+    example: 'abaisser abandon abdiquer…',
+  },
+  italian: {
+    label: 'Italiano (Italian)',
+    placeholder: 'e.g. abaco abbaglio abbinato abete abisso abolire abrasivo abrogato accadere accenno accusato acetone',
+    hint: '12 lowercase Italian words separated by spaces',
+    example: 'abaco abbaglio abbinato…',
+  },
+  japanese: {
+    label: '日本語 (Japanese)',
+    placeholder: 'e.g. あいこくしん あいさつ あいだ あおぞら あかちゃん あきる あけがた あける あこがれる あさい あさひ あしあと',
+    hint: '12 Japanese hiragana words separated by spaces',
+    example: 'あいこくしん あいさつ あいだ…',
+  },
+  spanish: {
+    label: 'Español (Spanish)',
+    placeholder: 'e.g. ábaco abdomen abeja abierto abogado abono aborto abrazo abrir abuelo abuso acabar',
+    hint: '12 lowercase Spanish words separated by spaces',
+    example: 'ábaco abdomen abeja…',
+  },
 }
 
 export default function StartPage() {
@@ -72,7 +96,7 @@ export default function StartPage() {
       return
     }
     try {
-      const wallet = WalletClient.fromMnemonic(trimmed, pin)
+      const wallet = WalletClient.fromMnemonic(trimmed, pin, language)
       setReceivePubKey(wallet.deriveChild("m/44'/0/0").toPublic().toString())
       setChangePubKey(wallet.deriveChild("m/44'/0/1").toPublic().toString())
     } catch {
@@ -92,7 +116,7 @@ export default function StartPage() {
   const handleImportWallet = async () => {
     try {
       setIsLoading(true)
-      const mnemonicError = !WalletClient.validateMnemonic(mnemonic.trim())
+      const mnemonicError = !WalletClient.validateMnemonic(mnemonic.trim(), language)
       setMnemonicError(mnemonicError)
       const pinError = pin.length !== 4 || !/^\d+$/.test(pin)
       setPinError(pinError)
@@ -101,7 +125,7 @@ export default function StartPage() {
         return
       }
 
-      await importWallet(mnemonic.trim(), pin)
+      await importWallet(mnemonic.trim(), pin, language)
 
       localStorage.setItem('wallet_mnemonic', mnemonic.trim())
       localStorage.setItem('wallet_pin', pin)
@@ -128,7 +152,10 @@ export default function StartPage() {
 
   const handleMnemonicChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value
-    const normalized = language === 'english' ? value.toLowerCase() : value
+    // Lowercase for all Latin-script languages; leave CJK and hiragana as-is
+    const normalized = (language !== 'chinese-simplified' && language !== 'japanese')
+      ? value.toLowerCase()
+      : value
     setMnemonic(normalized)
   }
 
@@ -137,51 +164,51 @@ export default function StartPage() {
   return (
     <div className="flex min-h-[calc(100vh-4rem)]">
       {/* Left panel — brand / trust */}
-      <div className="hidden lg:flex lg:w-1/2 bg-zinc-900 flex-col justify-between p-12">
+      <div className="hidden lg:flex lg:w-1/2 bg-zinc-100 dark:bg-zinc-900 flex-col justify-between p-12">
         <div>
           {/* Closure notice */}
           <div className="mb-6 rounded-lg border border-primary/30 bg-primary/10 px-4 py-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-primary mb-1">Important notice</p>
-            <p className="text-sm text-white/80 leading-relaxed">
-              Centbee is closing on <span className="font-semibold text-white">1 April 2026</span>. If you still have your 12-word recovery phrase and 4-digit PIN, your BSV is completely safe — this tool lets you sweep your coins to any other BSV service in minutes.
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-primary mb-1">Important notice</p>
+            <p className="text-sm text-zinc-700 dark:text-white/80 leading-relaxed">
+              Centbee is closing on <span className="font-semibold text-zinc-900 dark:text-white">1 April 2026</span>. If you still have your 12-word recovery phrase and 4-digit PIN, your BSV is completely safe — this tool lets you sweep your coins to any other BSV service in minutes.
             </p>
           </div>
 
-          <h1 className="text-4xl font-bold text-white leading-tight mb-4">
+          <h1 className="text-4xl font-bold text-zinc-900 dark:text-white leading-tight mb-4">
             Your BSV is safe.<br />Let&apos;s move it to safety.
           </h1>
-          <p className="text-white/60 text-base leading-relaxed max-w-sm">
+          <p className="text-zinc-500 dark:text-white/60 text-base leading-relaxed max-w-sm">
             Centbee has never controlled your keys — you always have. As long as you have your recovery phrase and PIN, your coins are yours and no one can take them away.
           </p>
         </div>
 
         <div className="space-y-5">
           <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10">
-              <Key className="h-4 w-4 text-primary" />
+            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-200 dark:bg-white/10">
+              <Key className="h-4 w-4 text-zinc-600 dark:text-primary" />
             </div>
             <div>
-              <p className="text-sm font-medium text-white">You own your keys</p>
-              <p className="text-xs text-white/50 mt-0.5">Centbee never held your BSV. Your 12-word phrase gives you full control, always.</p>
+              <p className="text-sm font-medium text-zinc-900 dark:text-white">You own your keys</p>
+              <p className="text-xs text-zinc-500 dark:text-white/50 mt-0.5">Centbee never held your BSV. Your 12-word phrase gives you full control, always.</p>
             </div>
           </div>
           <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10">
-              <ShieldCheck className="h-4 w-4 text-primary" />
+            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-200 dark:bg-white/10">
+              <ShieldCheck className="h-4 w-4 text-zinc-600 dark:text-primary" />
             </div>
             <div>
-              <p className="text-sm font-medium text-white">100% client-side</p>
-              <p className="text-xs text-white/50 mt-0.5">All cryptography runs locally in your browser. Nothing is sent to any server.</p>
+              <p className="text-sm font-medium text-zinc-900 dark:text-white">100% client-side</p>
+              <p className="text-xs text-zinc-500 dark:text-white/50 mt-0.5">All cryptography runs locally in your browser. Nothing is sent to any server.</p>
             </div>
           </div>
           <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10">
-              <Github className="h-4 w-4 text-primary" />
+            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-200 dark:bg-white/10">
+              <Github className="h-4 w-4 text-zinc-600 dark:text-primary" />
             </div>
             <div>
-              <p className="text-sm font-medium text-white">Open source</p>
-              <p className="text-xs text-white/50 mt-0.5">
-                <a href="https://github.com/HandCash/centbee-recovery" rel="noreferrer" target="_blank" className="underline underline-offset-2 hover:text-white/80 transition-colors">
+              <p className="text-sm font-medium text-zinc-900 dark:text-white">Open source</p>
+              <p className="text-xs text-zinc-500 dark:text-white/50 mt-0.5">
+                <a href="https://github.com/HandCash/centbee-recovery" rel="noreferrer" target="_blank" className="underline underline-offset-2 hover:text-zinc-700 dark:hover:text-white/80 transition-colors">
                   Audit the code on GitHub
                 </a>{" "}— nothing is hidden.
               </p>
@@ -216,7 +243,7 @@ export default function StartPage() {
               <div className="flex items-center gap-1.5">
                 <Languages className="h-3.5 w-3.5 text-muted-foreground" />
                 <label className="text-sm font-medium">Recovery phrase language</label>
-                <Tooltip text="Centbee supported both English and Chinese Simplified recovery phrases. Choose the language that matches the words you wrote down." />
+                <Tooltip text="Centbee supported recovery phrases in English, Chinese Simplified, French, Italian, Japanese, and Spanish. Choose the language that matches the words you wrote down." />
               </div>
               <select
                 value={language}
@@ -232,11 +259,17 @@ export default function StartPage() {
               >
                 <option value="english">English</option>
                 <option value="chinese-simplified">中文简体 (Chinese Simplified)</option>
+                <option value="french">Français (French)</option>
+                <option value="italian">Italiano (Italian)</option>
+                <option value="japanese">日本語 (Japanese)</option>
+                <option value="spanish">Español (Spanish)</option>
               </select>
               <p className="text-xs text-muted-foreground">
-                {language === 'english'
-                  ? 'Standard BIP39 English wordlist — all lowercase letters.'
-                  : 'BIP39 Chinese Simplified wordlist — characters separated by spaces (空格分隔汉字).'}
+                {language === 'chinese-simplified'
+                  ? 'BIP39 Chinese Simplified wordlist — characters separated by spaces (空格分隔汉字).'
+                  : language === 'japanese'
+                    ? 'BIP39 Japanese wordlist — hiragana words separated by spaces.'
+                    : `BIP39 ${LANGUAGE_CONFIG[language].label.split(' ')[0]} wordlist — all lowercase letters.`}
               </p>
             </div>
 

@@ -3,39 +3,41 @@
  *
  * Language detection is based on Unicode character ranges:
  * - CJK Unified Ideographs (\u4e00–\u9fff) → Chinese Simplified
- * - ASCII alphanumeric + space → English
+ * - Hiragana (\u3041–\u3096) → Japanese
+ * - ASCII alphanumeric + space → English (default for Latin scripts)
  *
- * This auto-detection allows the recovery tool to validate and derive seeds from
- * both English and Chinese Simplified BIP39 mnemonics without requiring manual
- * language selection.
+ * Note: French, Italian, and Spanish all use Latin script and cannot be
+ * reliably auto-detected. These languages require explicit selection.
  *
  * Source: BIP39 Standard (https://github.com/trezor/python-mnemonic)
  */
 
-export type MnemonicLanguage = 'english' | 'chinese-simplified'
+export type MnemonicLanguage = 'english' | 'chinese-simplified' | 'french' | 'italian' | 'japanese' | 'spanish'
 
 /**
- * Detects the language of a mnemonic phrase.
+ * Detects the language of a mnemonic phrase based on script/character ranges.
+ *
+ * Returns 'english' as a fallback for all Latin-script languages (French,
+ * Italian, Spanish) since they cannot be distinguished without checking
+ * against each wordlist. Use explicit language selection for those.
  *
  * @param mnemonic - The mnemonic phrase to analyze (space-separated words)
- * @returns The detected language: 'english' or 'chinese-simplified'
- *
- * @example
- * detectMnemonicLanguage('能 轻 幅 腰 幸 纪 矿 碗 转 脏 牢 证')
- * // Returns: 'chinese-simplified'
- *
- * @example
- * detectMnemonicLanguage('ability abandon able about above absent absolute absorb abstract abuse')
- * // Returns: 'english'
+ * @returns The detected language, or 'english' as default for Latin scripts
  */
 export function detectMnemonicLanguage(mnemonic: string): MnemonicLanguage {
   if (!mnemonic || typeof mnemonic !== 'string') {
-    return 'english' // Default to English for empty or invalid input
+    return 'english'
   }
 
-  // Check if the mnemonic contains any CJK Unified Ideographs
-  // Unicode range: \u4e00–\u9fff (CJK Unified Ideographs)
-  const cjkPattern = /[\u4e00-\u9fff]/
+  // CJK Unified Ideographs → Chinese Simplified
+  if (/[\u4e00-\u9fff]/.test(mnemonic)) {
+    return 'chinese-simplified'
+  }
 
-  return cjkPattern.test(mnemonic) ? 'chinese-simplified' : 'english'
+  // Hiragana → Japanese
+  if (/[\u3041-\u3096]/.test(mnemonic)) {
+    return 'japanese'
+  }
+
+  return 'english'
 }

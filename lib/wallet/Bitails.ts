@@ -6,9 +6,11 @@ import { Utxo } from './types/utxo'
  */
 export default class Bitails implements Broadcaster {
     URL: string
+    apiKey: string
 
-    constructor() {
+    constructor(apiKey: string = process.env.NEXT_PUBLIC_BITAILS_API_KEY ?? '') {
         this.URL = `https://api.bitails.io`
+        this.apiKey = apiKey
     }
 
     /**
@@ -65,18 +67,25 @@ export default class Bitails implements Broadcaster {
      * @returns {Promise<string>} A promise that resolves to the raw transaction.
      */
     async fetchRawTx(txid: string): Promise<string> {
-        const response = await window.fetch(`${this.URL}/download/tx/${txid}/hex`, {
+        const headers: Record<string, string> = {}
+        if (this.apiKey) headers['apikey'] = this.apiKey
+
+        const bitailsResponse = await window.fetch(`${this.URL}/download/tx/${txid}/hex`, {
           method: 'GET',
-          headers: {
-            'Content-Type': 'application/gzip'
-          }
+          headers,
         });
-        if (!response.ok) {
-          throw new Error(`Failed to fetch raw transaction: ${response.statusText}`);
+        if (bitailsResponse.ok) {
+          return (await bitailsResponse.text()).trim();
         }
-        const data = await response.arrayBuffer()
-        const rawTx = new TextDecoder().decode(data)
-        return rawTx;
+
+        // Fallback to WhatsOnChain if Bitails doesn't have the transaction
+        const wocResponse = await window.fetch(`https://api.whatsonchain.com/v1/bsv/main/tx/${txid}/hex`, {
+          method: 'GET',
+        });
+        if (!wocResponse.ok) {
+          throw new Error(`Failed to fetch raw transaction: ${wocResponse.statusText}`);
+        }
+        return (await wocResponse.text()).trim();
       }
 
       /**
