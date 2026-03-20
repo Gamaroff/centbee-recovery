@@ -48,10 +48,12 @@ All external API calls are intercepted by [Mock Service Worker (MSW)](https://ms
 
 | Endpoint | Mock response |
 |----------|--------------|
-| `POST https://api.bitails.io/address/unspent/multi` | Returns `SAMPLE_UTXO_RESPONSE` (1 UTXO) |
+| `POST https://api.bitails.io/address/unspent/multi` | Returns empty UTXO list for every queried address |
 | `GET https://api.bitails.io/download/tx/:txid/hex` | Returns `SAMPLE_RAW_TX_HEX` |
 | `POST https://api.bitails.io/tx/broadcast` | Returns `{ txid: "abcdef..." }` |
 | `GET https://api.whatsonchain.com/v1/bsv/main/tx/:txid/hex` | Returns `SAMPLE_RAW_TX_HEX` |
+
+The default UTXO handler returns empty arrays so tests are silent by default. Override it when a test needs to simulate found funds.
 
 **Overriding handlers in a test**:
 
@@ -59,17 +61,53 @@ All external API calls are intercepted by [Mock Service Worker (MSW)](https://ms
 import { http, HttpResponse } from 'msw'
 import { server } from '../../lib/mocks/server'
 
-it('handles rate limiting', async () => {
+it('returns UTXOs when funds are found', async () => {
   server.use(
-    http.post('https://api.bitails.io/address/unspent/multi', () =>
-      new HttpResponse(null, { status: 429 })
-    )
+    http.post('https://api.bitails.io/address/unspent/multi', async ({ request }) => {
+      const body = await request.json() as { addresses: string[] }
+      return HttpResponse.json(
+        body.addresses.map((address, i) => ({
+          address,
+          unspent: i === 0 ? [{ txid: 'aabbcc', vout: 0, satoshis: 100000, blockheight: 700000 }] : [],
+        }))
+      )
+    })
   )
   // ... test code
 })
 ```
 
 Handlers reset automatically after each test (`afterEach(() => server.resetHandlers())`).
+
+**Pre-built error scenarios** from `lib/mocks/handlers.ts`:
+
+```ts
+import { errorHandlers } from '../../lib/mocks/handlers'
+
+server.use(errorHandlers.rateLimitUtxo)      // 429 on UTXO fetch
+server.use(errorHandlers.serverErrorUtxo)    // 500 on UTXO fetch
+server.use(errorHandlers.bitailsTxNotFound)  // 404 on raw tx (triggers WoC fallback)
+server.use(errorHandlers.broadcastFailure)   // broadcast returns error body
+```
+
+**Fake timers for retry/backoff tests**:
+
+Bitails uses exponential backoff (up to 5 retries, starting at 1s). Use `vi.useFakeTimers()` to avoid real waits:
+
+```ts
+it('throws after max retries', async () => {
+  vi.useFakeTimers()
+  server.use(errorHandlers.rateLimitUtxo)
+  const bitails = new Bitails()
+  const promise = bitails.fetchUtxosForAddress(['1A1...'])
+  // Attach rejection handler BEFORE advancing timers — otherwise Vitest
+  // sees an unhandled rejection and fails the test.
+  const expectation = expect(promise).rejects.toThrow('Rate limited by Bitails after max retries')
+  await vi.runAllTimersAsync()
+  await expectation
+  vi.useRealTimers()
+})
+```
 
 ## Test Fixtures
 
@@ -118,15 +156,18 @@ vi.mock('../../lib/wallet/walletClient', () => ({
 
 ## Coverage Targets
 
-| Module | Target |
-|--------|--------|
-| `lib/wallet/walletClient.ts` | 85%+ |
-| `lib/wallet/Bitails.ts` | 80%+ |
-| `lib/wallet/walletCache.ts` | 80%+ |
-| `app/components/Wallet.tsx` | 75%+ |
-| `app/start/page.tsx` | 75%+ |
+Coverage is collected over `lib/wallet/**` and `app/components/**` (wordlists and type files are excluded). Global thresholds enforced on every run:
 
-View coverage report after running `npm run test:coverage` — open `coverage/index.html` in your browser.
+| Metric | Threshold |
+|--------|-----------|
+| Lines | 80% |
+| Statements | 80% |
+| Functions | 70% |
+| Branches | 70% |
+
+Thresholds are configured in `vitest.config.ts`. The build fails if any threshold is not met.
+
+View the full report after running `npm run test:coverage` — open `coverage/index.html` in your browser.
 
 ## Writing New Tests
 
