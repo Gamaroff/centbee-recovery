@@ -57,6 +57,13 @@ export default function StartPage() {
   const router = useRouter()
 
   useEffect(() => {
+    const storedMnemonic = localStorage.getItem('wallet_mnemonic')
+    const storedPin = localStorage.getItem('wallet_pin')
+    if (storedMnemonic) setMnemonic(storedMnemonic)
+    if (storedPin) setPin(storedPin)
+  }, [])
+
+  useEffect(() => {
     const trimmed = mnemonic.trim()
     const pinReady = pin.length === 4 && /^\d+$/.test(pin)
     if (!trimmed || !pinReady) {
@@ -108,6 +115,17 @@ export default function StartPage() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleReset = () => {
+    setMnemonic('')
+    setPin('')
+    setMnemonicError(false)
+    setPinError(false)
+    setReceivePubKey(null)
+    setChangePubKey(null)
+    localStorage.removeItem('wallet_mnemonic')
+    localStorage.removeItem('wallet_pin')
   }
 
   const handleMnemonicChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -334,24 +352,36 @@ export default function StartPage() {
               </div>
             )}
 
-            <Button
-              className="w-full gap-2"
-              onClick={handleImportWallet}
-              disabled={isLoading}
-              size="lg"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Restoring wallet…
-                </>
-              ) : (
-                <>
-                  Restore wallet
-                  <ArrowRight className="h-4 w-4" />
-                </>
-              )}
-            </Button>
+            <div className="flex gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                onClick={handleReset}
+                disabled={isLoading}
+                className="gap-2"
+              >
+                Reset
+              </Button>
+              <Button
+                className="flex-1 gap-2"
+                onClick={handleImportWallet}
+                disabled={isLoading}
+                size="lg"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Restoring wallet…
+                  </>
+                ) : (
+                  <>
+                    Restore wallet
+                    <ArrowRight className="h-4 w-4" />
+                  </>
+                )}
+              </Button>
+            </div>
           </form>
 
           {/* Trust footer */}
