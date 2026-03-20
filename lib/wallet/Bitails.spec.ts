@@ -93,9 +93,12 @@ describe('Bitails', () => {
         )
       )
       const promise = bitails.fetchUtxosForAddress(['1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'])
-      // Advance through all 5 retry delays (1s, 2s, 4s, 8s, 16s, 32s)
+      // Attach rejection handler before advancing timers to prevent unhandled rejection
+      // (vitest sees rejection as unhandled if handler is attached after the rejection fires)
+      const expectation = expect(promise).rejects.toThrow('Rate limited by Bitails after max retries')
+      // Advance through all retry delays (1s, 2s, 4s, 8s, 16s, 32s)
       await vi.runAllTimersAsync()
-      await expect(promise).rejects.toThrow('Rate limited by Bitails after max retries')
+      await expectation
       vi.useRealTimers()
     })
 
