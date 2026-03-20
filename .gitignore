@@ -37,5 +37,8 @@ firebase-debug.log
 CLAUDE.md
 .claude
 
+# tasks
+.tasks
+
 .contentlayer
 .env
