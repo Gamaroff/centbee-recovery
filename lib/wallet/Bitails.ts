@@ -5,17 +5,12 @@ import { Utxo } from './types/utxo'
  * Represents an Bitails transaction broadcaster.
  */
 export default class Bitails implements Broadcaster {
-    network: 'main' | 'test'
     URL: string
+    apiKey: string
 
-    /**
-     * Constructs an instance of the Bitails broadcaster.
-     *
-     * @param {string} network - which network to use (testnet or mainnet)
-     */
-    constructor(network: 'main' | 'test') {
-        this.network = network
+    constructor(apiKey: string = process.env.NEXT_PUBLIC_BITAILS_API_KEY ?? '') {
         this.URL = `https://api.bitails.io`
+        this.apiKey = apiKey
     }
 
     /**
@@ -72,18 +67,25 @@ export default class Bitails implements Broadcaster {
      * @returns {Promise<string>} A promise that resolves to the raw transaction.
      */
     async fetchRawTx(txid: string): Promise<string> {
-        const response = await window.fetch(`${this.URL}/download/tx/${txid}/hex`, {
+        const headers: Record<string, string> = {}
+        if (this.apiKey) headers['apikey'] = this.apiKey
+
+        const bitailsResponse = await window.fetch(`${this.URL}/download/tx/${txid}/hex`, {
           method: 'GET',
-          headers: {
-            'Content-Type': 'application/gzip'
-          }
+          headers,
         });
-        if (!response.ok) {
-          throw new Error(`Failed to fetch raw transaction: ${response.statusText}`);
+        if (bitailsResponse.ok) {
+          return (await bitailsResponse.text()).trim();
         }
-        const data = await response.arrayBuffer()
-        const rawTx = new TextDecoder().decode(data)
-        return rawTx;
+
+        // Fallback to WhatsOnChain if Bitails doesn't have the transaction
+        const wocResponse = await window.fetch(`https://api.whatsonchain.com/v1/bsv/main/tx/${txid}/hex`, {
+          method: 'GET',
+        });
+        if (!wocResponse.ok) {
+          throw new Error(`Failed to fetch raw transaction: ${wocResponse.statusText}`);
+        }
+        return (await wocResponse.text()).trim();
       }
 
       /**
@@ -100,24 +102,45 @@ export default class Bitails implements Broadcaster {
      * @param {string[]} addresses - BSV addresses to query (sent as `{ addresses }` in POST body)
      * @returns {Promise<Utxo[]>} Flat list of UTXOs across all queried addresses
      */
-      async fetchUtxosForAddress(addresses: string[]): Promise<Utxo[]> {
-        const response = await window.fetch(`${this.URL}/address/unspent/multi`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ addresses })
-        });
-        if (!response.ok) {
-          throw new Error(`Failed to fetch utxos for addresses ${addresses}: ${response.statusText}`);
+      async fetchUtxosForAddress(
+        addresses: string[],
+        onRateLimit?: (attempt: number, delayMs: number) => void,
+        onRateLimitCleared?: () => void,
+      ): Promise<Utxo[]> {
+        const maxRetries = 5
+        let delay = 1000
+
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+          const response = await window.fetch(`${this.URL}/address/unspent/multi`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ addresses }),
+          })
+
+          if (response.status === 429) {
+            if (attempt === maxRetries) throw new Error('Rate limited by Bitails after max retries')
+            onRateLimit?.(attempt + 1, delay)
+            await new Promise(resolve => setTimeout(resolve, delay))
+            delay *= 2
+            continue
+          }
+
+          if (attempt > 0) onRateLimitCleared?.()
+
+          if (!response.ok) {
+            throw new Error(`Failed to fetch utxos for addresses: ${response.statusText}`)
+          }
+
+          const data = await response.json()
+          return data.map((item: any) => item.unspent.map((utxo: any): Utxo => ({
+            address: item.address,
+            txid: utxo.txid,
+            vout: utxo.vout,
+            satoshis: utxo.satoshis,
+            height: utxo.blockheight,
+          }))).flat()
         }
-        const data = await response.json()
-        return data.map((item: any) => item.unspent.map((utxo: any): Utxo => ({
-          address: item.address,
-          txid: utxo.txid,
-          vout: utxo.vout,
-          satoshis: utxo.satoshis,
-          height: utxo.blockheight,
-        }))).flat()
+
+        return []
       }
 }
