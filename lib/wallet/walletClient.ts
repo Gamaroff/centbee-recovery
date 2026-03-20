@@ -11,6 +11,8 @@ const FEE_RATE_IN_SATOSHIS_PER_BYTE = 100
 const FEE_PER_P2PKH_INPUT = 148
 const FEE_PER_P2PKH_OUTPUT = 34
 const FEE_OVERHEAD = 10
+// Courtesy delay between address-batch requests to avoid hammering the Bitails API
+const BATCH_REQUEST_DELAY_MS = 200
 
 /**
  * Returns the appropriate wordlist for a mnemonic based on auto-detected language.
@@ -33,7 +35,7 @@ export class WalletClient {
     this.hdPrivateKey = hdPrivateKey
     this.mnemonic = mnemonic
     this.cache = new WalletCache()
-    this.bitails = new Bitails('main')
+    this.bitails = new Bitails()
   }
 
   static createNew(): WalletClient {
@@ -112,11 +114,13 @@ export class WalletClient {
     const totalInputInSatoshis = utxos.reduce((sum, utxo) => sum + utxo.satoshis, 0)
     const totalOutputs = 1
 
-    const estimatedSize = utxos.length * FEE_PER_P2PKH_INPUT + totalOutputs * FEE_PER_P2PKH_OUTPUT + FEE_OVERHEAD
-    const fee = estimatedSize * FEE_RATE_IN_SATOSHIS_PER_BYTE
+    // Conservative early-exit guard only — actual fee is determined by the SDK below via tx.fee()
+    const estimatedFee =
+      (utxos.length * FEE_PER_P2PKH_INPUT + totalOutputs * FEE_PER_P2PKH_OUTPUT + FEE_OVERHEAD) *
+      FEE_RATE_IN_SATOSHIS_PER_BYTE
 
-    if (totalInputInSatoshis < fee) {
-      throw new Error(`Insufficient funds: total input in satoshis is less than the fee (${fee} satoshis)`)
+    if (totalInputInSatoshis <= estimatedFee) {
+      throw new Error(`Insufficient funds: balance (${totalInputInSatoshis} satoshis) does not exceed estimated fee (${estimatedFee} satoshis)`)
     }
 
     // Create transaction
@@ -124,6 +128,9 @@ export class WalletClient {
 
     // Add inputs
     for (const utxo of utxos) {
+      if (!utxo.derivationPath) {
+        throw new Error(`UTXO ${utxo.txid}:${utxo.vout} is missing a derivation path and cannot be signed`)
+      }
       let sourceTransaction = this.cache.getTransactionById(utxo.txid)
       if (!sourceTransaction) {
         const rawTx = await this.bitails.fetchRawTx(utxo.txid)
@@ -133,7 +140,7 @@ export class WalletClient {
       tx.addInput({
         sourceTransaction,
         sourceOutputIndex: utxo.vout,
-        unlockingScriptTemplate: new P2PKH().unlock(this.hdPrivateKey.derive(utxo.derivationPath!).privKey),
+        unlockingScriptTemplate: new P2PKH().unlock(this.hdPrivateKey.derive(utxo.derivationPath).privKey),
       })
     }
 
@@ -145,7 +152,7 @@ export class WalletClient {
 
     await tx.fee(new SatoshisPerKilobyte(FEE_RATE_IN_SATOSHIS_PER_BYTE * 1000))
     await tx.sign()
-    await tx.broadcast(new Bitails('main'));
+    await tx.broadcast(new Bitails());
     return tx.id('hex')
   }
 }
@@ -174,19 +181,20 @@ export function clearWallet(): void {
 /**
  * Scans the blockchain for UTXOs belonging to the current wallet singleton.
  *
- * Derives addresses in batches of `gapLimit` (default 25) for both the external
- * chain (chain 0, receiving addresses) and the internal chain (chain 1, change addresses),
- * following the BIP44 path `m/44'/0/${chain}/${index}`.
+ * Addresses are derived for both the external chain (chain 0, receiving addresses)
+ * and the internal chain (chain 1, change addresses), following the BIP44 path
+ * `m/44'/0/${chain}/${index}`.
  *
- * Gap limit behaviour: scanning stops on a chain as soon as a full batch of
- * `gapLimit` addresses returns no UTXOs. This means up to `gapLimit - 1`
- * consecutive unused addresses are tolerated; a larger gap will cause funds
- * beyond that point to be missed.
+ * Scanning works in two nested levels:
+ * - `batchSize` (default 25): how many addresses are queried per API request.
+ * - `gapLimit` (default 3500): the maximum number of consecutive unused addresses
+ *   to tolerate before stopping. Scanning stops on a chain as soon as `gapLimit`
+ *   addresses in a row return no UTXOs. Funds beyond that gap will be missed.
  *
  * A 200ms delay is inserted between batch requests to avoid rate-limiting by Bitails.
  *
- * @param gapLimit - Number of addresses per batch; scanning stops when a full batch
- *                   returns no UTXOs (default: 25)
+ * @param gapLimit - Max consecutive unused addresses before stopping (default: 3500)
+ * @param batchSize - Number of addresses per API request (default: 25)
  * @returns All discovered UTXOs with their derivation paths attached
  * @throws If no wallet singleton exists (call `importWallet` first)
  */
@@ -205,7 +213,7 @@ export interface SyncProgress {
 }
 
 export async function syncWallet(
-  gapLimit = 1000,
+  gapLimit = 3500,
   batchSize = 25,
   onProgress?: (progress: SyncProgress) => void,
 ): Promise<Utxo[]> {
@@ -244,7 +252,7 @@ export async function syncWallet(
       })
       childIndex += batchSize
 
-      await new Promise(resolve => setTimeout(resolve, 200))
+      await new Promise(resolve => setTimeout(resolve, BATCH_REQUEST_DELAY_MS))
       const utxos = await wallet.fetchUtxosForAddress(
         addresses,
         (attempt, delayMs) => {

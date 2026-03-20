@@ -5,16 +5,9 @@ import { Utxo } from './types/utxo'
  * Represents an Bitails transaction broadcaster.
  */
 export default class Bitails implements Broadcaster {
-    network: 'main' | 'test'
     URL: string
 
-    /**
-     * Constructs an instance of the Bitails broadcaster.
-     *
-     * @param {string} network - which network to use (testnet or mainnet)
-     */
-    constructor(network: 'main' | 'test') {
-        this.network = network
+    constructor() {
         this.URL = `https://api.bitails.io`
     }
 
