@@ -233,16 +233,17 @@ export async function syncWallet(
   const results: Utxo[] = []
   let totalAddressesScanned = 0
 
-  let wallet = getWallet()
-  if (!wallet) {
+  let walletOrNull = getWallet()
+  if (!walletOrNull) {
     const storedMnemonic = localStorage.getItem('wallet_mnemonic')
     const storedPin = localStorage.getItem('wallet_pin')
     if (storedMnemonic && storedPin) {
-      wallet = importWallet(storedMnemonic, storedPin)
+      walletOrNull = importWallet(storedMnemonic, storedPin)
     } else {
       throw new Error('Wallet not found')
     }
   }
+  const wallet: WalletClient = walletOrNull
 
   const chainLabels: Record<number, string> = { 0: 'receive', 1: 'change' }
 

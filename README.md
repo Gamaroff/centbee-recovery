@@ -290,6 +290,12 @@ Wordlists for non-English languages live in `lib/wallet/wordlists/`. If a langua
 | `npm run typecheck`    | TypeScript check without emitting files                |
 | `npm run format:write` | Reformat all `.ts`, `.tsx`, `.mdx` files with Prettier |
 | `npm run format:check` | Check formatting without writing                       |
+| `npm test`             | Run all unit and integration tests                     |
+| `npm run test:watch`   | Run tests in watch mode                                |
+| `npm run test:coverage`| Run tests with coverage report                         |
+| `npm run test:e2e`     | Run Playwright end-to-end tests                        |
+
+For full details on the test setup, fixtures, and how to write new tests, see [docs/TESTING.md](./docs/TESTING.md).
 
 ### Tech stack
 
@@ -403,6 +409,7 @@ Existing documentation:
 | [docs/security-model.md](./docs/security-model.md)                 | Threat model, localStorage risks, trust boundaries, deployment guidance                                                                                                                     |
 | [docs/multi-language-support.md](./docs/multi-language-support.md) | Language detection, wordlist format, adding a new BIP39 language                                                                                                                            |
 | [docs/api-providers.md](./docs/api-providers.md)                   | Bitails + WhatsOnChain endpoints, rate limiting, swapping in a different indexer                                                                                                            |
+| [docs/TESTING.md](./docs/TESTING.md)                               | Test setup, MSW mocking, fixtures, coverage thresholds, and how to write new tests                                                                                                          |
 
 ---
 
