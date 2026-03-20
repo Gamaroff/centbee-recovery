@@ -98,6 +98,15 @@ export default function Wallet() {
                     </CardContent>
                 </Card>
 
+                <Alert className="w-full max-w-md">
+                    <InfoIcon className="h-4 w-4" />
+                    <AlertTitle>Open Source & Privacy First</AlertTitle>
+                    <AlertDescription className="text-xs text-muted-foreground space-y-1">
+                        <p>Your keys are never stored on any server or sent anywhere — all operations happen locally in your browser.</p>
+                        <p>This is an open source project. <a href="https://github.com/Gamaroff/centbee-recovery" rel="noreferrer" target="_blank" className="text-accent-foreground underline">Review the source code on GitHub.</a></p>
+                    </AlertDescription>
+                </Alert>
+
                 {utxos.length > 0 && (
                     <Card className="w-full max-w-md">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0">
