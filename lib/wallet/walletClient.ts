@@ -63,6 +63,24 @@ export class WalletClient {
     return this.bitails.fetchUtxosForAddress(addresses)
   }
 
+  /**
+   * Builds, signs, and broadcasts a "sweep" transaction that spends all provided UTXOs
+   * to a single destination address.
+   *
+   * Fee is calculated manually before signing:
+   *   fee = (inputs × 148 + outputs × 34 + 10) × 100 sat/byte
+   *
+   * The source transaction for each UTXO is required by @bsv/sdk to construct the
+   * unlocking script. It is fetched from Bitails and cached to avoid redundant requests.
+   *
+   * Throws if:
+   * - No UTXOs are provided
+   * - Total input value is less than the estimated fee (balance too low to cover fees)
+   *
+   * @param utxos - UTXOs to spend, each must have a `derivationPath` set
+   * @param destinationAddress - BSV address to receive all funds minus fee
+   * @returns The broadcast transaction ID (hex)
+   */
   async sendAll(utxos: Utxo[], destinationAddress: string): Promise<string> {
     if (!utxos.length) {
       throw new Error('No UTXOs provided')
@@ -130,6 +148,25 @@ export function clearWallet(): void {
   walletInstance = null
 }
 
+/**
+ * Scans the blockchain for UTXOs belonging to the current wallet singleton.
+ *
+ * Derives addresses in batches of `gapLimit` (default 25) for both the external
+ * chain (chain 0, receiving addresses) and the internal chain (chain 1, change addresses),
+ * following the BIP44 path `m/44'/0/${chain}/${index}`.
+ *
+ * Gap limit behaviour: scanning stops on a chain as soon as a full batch of
+ * `gapLimit` addresses returns no UTXOs. This means up to `gapLimit - 1`
+ * consecutive unused addresses are tolerated; a larger gap will cause funds
+ * beyond that point to be missed.
+ *
+ * A 200ms delay is inserted between batch requests to avoid rate-limiting by Bitails.
+ *
+ * @param gapLimit - Number of addresses per batch; scanning stops when a full batch
+ *                   returns no UTXOs (default: 25)
+ * @returns All discovered UTXOs with their derivation paths attached
+ * @throws If no wallet singleton exists (call `importWallet` first)
+ */
 export async function syncWallet(gapLimit = 25): Promise<Utxo[]> {
   const results: Utxo[] = []
 

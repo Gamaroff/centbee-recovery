@@ -87,11 +87,18 @@ export default class Bitails implements Broadcaster {
       }
 
       /**
-     * Fetches utxos for a list of addresses from Bitails.
+     * Fetches UTXOs for a batch of addresses in a single request using the Bitails
+     * multi-address unspent endpoint (`POST /address/unspent/multi`).
+     *
+     * The API returns an array of objects, one per address, each containing an
+     * `unspent` array of UTXOs for that address. Addresses with no UTXOs are
+     * included in the response with an empty `unspent` array. The response is
+     * flattened so the caller receives a single list of UTXOs across all addresses.
+     *
      * https://docs.bitails.io/#get-unspent-of-address
      *
-     * @param {string[]} addresses - The list of addresses.
-     * @returns {Promise<Utxo[]>} A promise that resolves to the list of utxos.
+     * @param {string[]} addresses - BSV addresses to query (sent as `{ addresses }` in POST body)
+     * @returns {Promise<Utxo[]>} Flat list of UTXOs across all queried addresses
      */
       async fetchUtxosForAddress(addresses: string[]): Promise<Utxo[]> {
         const response = await window.fetch(`${this.URL}/address/unspent/multi`, {

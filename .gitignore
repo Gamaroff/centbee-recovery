@@ -32,5 +32,9 @@ yarn-error.log*
 # turbo
 .turbo
 
+# claude
+CLAUDE.md
+.claude
+
 .contentlayer
 .env
