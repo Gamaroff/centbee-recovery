@@ -9,6 +9,7 @@ import { toast } from "sonner"
 import { Textarea } from "@/components/ui/textarea"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
+import { detectMnemonicLanguage } from "@/lib/wallet/detectMnemonicLanguage"
 
 export default function StartPage() {
   const [mnemonic, setMnemonic] = useState('')
@@ -49,7 +50,10 @@ export default function StartPage() {
 
   const handleMnemonicChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const mnemonic = e.target.value;
-    setMnemonic(mnemonic.trim().toLowerCase())
+    // Apply lowercase only for English mnemonics; Chinese characters have no case
+    const language = detectMnemonicLanguage(mnemonic)
+    const normalized = language === 'english' ? mnemonic.toLowerCase() : mnemonic
+    setMnemonic(normalized)
   }
 
   return (

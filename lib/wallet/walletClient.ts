@@ -4,12 +4,24 @@ import { HD, Mnemonic, Transaction, P2PKH, SatoshisPerKilobyte } from '@bsv/sdk'
 import Bitails from './Bitails'
 import { WalletCache } from './walletCache'
 import { Utxo } from './types/utxo'
+import { detectMnemonicLanguage } from './detectMnemonicLanguage'
+import { chineseSimplifiedWordList } from './wordlists/chinese-simplified'
 
 const FEE_RATE_IN_SATOSHIS_PER_BYTE = 100
 const FEE_PER_P2PKH_INPUT = 148
 const FEE_PER_P2PKH_OUTPUT = 34
 const FEE_OVERHEAD = 10
 
+/**
+ * Returns the appropriate wordlist for a mnemonic based on auto-detected language.
+ * @param mnemonic - The mnemonic phrase to analyze
+ * @returns The wordlist object if Chinese Simplified is detected, undefined for English (uses SDK default)
+ */
+function getWordlist(mnemonic: string) {
+  return detectMnemonicLanguage(mnemonic) === 'chinese-simplified'
+    ? chineseSimplifiedWordList
+    : undefined // undefined = use SDK default (English)
+}
 
 export class WalletClient {
   private hdPrivateKey: HD
@@ -34,14 +46,21 @@ export class WalletClient {
     if (!WalletClient.validateMnemonic(mnemonicString)) {
       throw new Error('Invalid mnemonic')
     }
-    const mnemonic = Mnemonic.fromString(mnemonicString);
+    const wordlist = getWordlist(mnemonicString)
+    const mnemonic = wordlist
+      ? new Mnemonic(mnemonicString, undefined, wordlist)
+      : Mnemonic.fromString(mnemonicString)
     const hdPrivateKey = HD.fromSeed(mnemonic.toSeed(pin))
     return new WalletClient(hdPrivateKey, mnemonicString)
   }
 
   static validateMnemonic(mnemonic: string): boolean {
     try {
-      return Mnemonic.isValid(mnemonic)
+      const wordlist = getWordlist(mnemonic)
+      const m = wordlist
+        ? new Mnemonic(mnemonic, undefined, wordlist)
+        : new Mnemonic(mnemonic)
+      return m.isValid()
     } catch {
       return false
     }
