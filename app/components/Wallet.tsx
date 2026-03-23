@@ -261,6 +261,7 @@ export default function Wallet() {
                             <div className="flex gap-4 text-xs mb-2">
                                 <span>Addresses checked: <span className="font-mono font-semibold">{syncProgress?.totalAddressesScanned ?? 0}</span></span>
                                 <span>UTXOs found: <span className="font-mono font-semibold">{syncProgress?.utxosFound ?? 0}</span></span>
+                                <span>Time elapsed: <span className="font-mono font-semibold text-foreground">{`${Math.floor(elapsed / 60)}:${(elapsed % 60).toString().padStart(2, '0')}`}</span></span>
                             </div>
                             <div className="max-h-36 overflow-y-auto rounded border border-border bg-background/60 p-2 space-y-0.5">
                                 {scanLog.map((entry, i) => (
