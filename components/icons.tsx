@@ -12,7 +12,7 @@ export const Icons = {
   sun: SunMedium,
   moon: Moon,
   twitter: Twitter,
-  logo: <img src="https://play-lh.googleusercontent.com/wH2ExqfSDoNFrlX5BybrssqxlPI4ybGIsrsd1hnwGF8NsvL0fajP-BoH4qnJau3CgA=s96-rw" alt="Centbee Recovery" className="h-10 w-10 rounded-full" />,
+  logo: <img src="/assets/centbee-logo.png" alt="Centbee Recovery" className="h-10 w-10 rounded-full" />,
   x: (props: LucideProps) => (
     <svg viewBox="0 0 1200 1227" xmlns="http://www.w3.org/2000/svg" {...props}>
       <path
