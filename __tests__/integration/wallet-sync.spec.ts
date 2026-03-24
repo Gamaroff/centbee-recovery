@@ -10,11 +10,11 @@ describe('Wallet sync integration', () => {
     vi.restoreAllMocks()
   })
 
-  it('wallet derives correct addresses and fetches UTXOs via Bitails', async () => {
+  it('wallet derives correct addresses from mnemonic and PIN', async () => {
     const wallet = importWallet(TEST_MNEMONIC, TEST_PIN)
     expect(wallet).toBeInstanceOf(WalletClient)
 
-    // The API call goes through MSW — verify UTXOs come back
+    // Derive the first external address and verify it resolves to a valid BSV address string
     const child = wallet.deriveChild("m/44'/0/0/0")
     const address = child.pubKey.toAddress().toString()
     expect(address).toBeTruthy()
