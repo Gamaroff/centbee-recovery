@@ -2,6 +2,9 @@
 
 import { HD, Mnemonic, Transaction, P2PKH, SatoshisPerKilobyte } from '@bsv/sdk'
 import Bitails from './Bitails'
+import WhatsOnChain from './WhatsOnChain'
+import DelegatedIndexerService from './DelegatedIndexerService'
+import { IndexerService } from './types/indexerService'
 import { WalletCache } from './walletCache'
 import { Utxo } from './types/utxo'
 import { SyncProgress } from './types/syncProgress'
@@ -40,13 +43,13 @@ export class WalletClient {
   private hdPrivateKey: HD
   private mnemonic: string
   private cache: WalletCache
-  private bitails: Bitails
-  
+  private indexer: IndexerService
+
   private constructor(hdPrivateKey: HD, mnemonic: string) {
     this.hdPrivateKey = hdPrivateKey
     this.mnemonic = mnemonic
     this.cache = new WalletCache()
-    this.bitails = new Bitails()
+    this.indexer = new DelegatedIndexerService(new Bitails(), new WhatsOnChain())
   }
 
   static createNew(): WalletClient {
@@ -96,7 +99,7 @@ export class WalletClient {
     onRateLimit?: (attempt: number, delayMs: number) => void,
     onRateLimitCleared?: () => void,
   ): Promise<Utxo[]> {
-    return this.bitails.fetchUtxosForAddress(addresses, onRateLimit, onRateLimitCleared)
+    return this.indexer.fetchUtxosForAddress(addresses, onRateLimit, onRateLimitCleared)
   }
 
   /**
@@ -144,7 +147,7 @@ export class WalletClient {
       }
       let sourceTransaction = this.cache.getTransactionById(utxo.txid)
       if (!sourceTransaction) {
-        const rawTx = await this.bitails.fetchRawTx(utxo.txid)
+        const rawTx = await this.indexer.fetchRawTx(utxo.txid)
         sourceTransaction = Transaction.fromHex(rawTx)
         this.cache.setTransaction(sourceTransaction)
       }
@@ -163,7 +166,7 @@ export class WalletClient {
 
     await tx.fee(new SatoshisPerKilobyte(FEE_RATE_IN_SATOSHIS_PER_BYTE * 1000))
     await tx.sign()
-    const broadcastResult = await tx.broadcast(this.bitails)
+    const broadcastResult = await tx.broadcast(this.indexer)
     if ('code' in broadcastResult) {
       throw new Error(`Broadcast failed: ${broadcastResult.description}`)
     }
