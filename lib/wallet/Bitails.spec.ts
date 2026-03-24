@@ -6,7 +6,6 @@ import { SAMPLE_UTXO_RESPONSE, SAMPLE_RAW_TX_HEX } from '../test-fixtures'
 import { Transaction } from '@bsv/sdk'
 
 const BITAILS_URL = 'https://api.bitails.io'
-const WOC_URL = 'https://api.whatsonchain.com'
 
 describe('Bitails', () => {
   let bitails: Bitails
@@ -44,62 +43,15 @@ describe('Bitails', () => {
       expect(utxos).toHaveLength(0)
     })
 
-    it('calls onRateLimit callback on 429 and retries', async () => {
-      let callCount = 0
-      server.use(
-        http.post(`${BITAILS_URL}/address/unspent/multi`, () => {
-          callCount++
-          if (callCount === 1) {
-            return new HttpResponse(null, { status: 429 })
-          }
-          return HttpResponse.json(SAMPLE_UTXO_RESPONSE)
-        })
-      )
-
-      const rateLimitCalls: number[] = []
-      const utxos = await bitails.fetchUtxosForAddress(
-        ['1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'],
-        (attempt) => rateLimitCalls.push(attempt),
-      )
-      expect(rateLimitCalls).toHaveLength(1)
-      expect(rateLimitCalls[0]).toBe(1)
-      expect(utxos).toHaveLength(1)
-    })
-
-    it('calls onRateLimitCleared after successful retry', async () => {
-      let callCount = 0
-      server.use(
-        http.post(`${BITAILS_URL}/address/unspent/multi`, () => {
-          callCount++
-          if (callCount === 1) return new HttpResponse(null, { status: 429 })
-          return HttpResponse.json(SAMPLE_UTXO_RESPONSE)
-        })
-      )
-
-      let cleared = false
-      await bitails.fetchUtxosForAddress(
-        ['1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'],
-        undefined,
-        () => { cleared = true },
-      )
-      expect(cleared).toBe(true)
-    })
-
-    it('throws after max retries exceeded', async () => {
-      vi.useFakeTimers()
+    it('throws on 429 rate limit', async () => {
       server.use(
         http.post(`${BITAILS_URL}/address/unspent/multi`, () =>
           new HttpResponse(null, { status: 429 })
         )
       )
-      const promise = bitails.fetchUtxosForAddress(['1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'])
-      // Attach rejection handler before advancing timers to prevent unhandled rejection
-      // (vitest sees rejection as unhandled if handler is attached after the rejection fires)
-      const expectation = expect(promise).rejects.toThrow('Rate limited by Bitails after max retries')
-      // Advance through all retry delays (1s, 2s, 4s, 8s, 16s, 32s)
-      await vi.runAllTimersAsync()
-      await expectation
-      vi.useRealTimers()
+      await expect(
+        bitails.fetchUtxosForAddress(['1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'])
+      ).rejects.toThrow('Rate limited by Bitails')
     })
 
     it('throws on non-429 API error', async () => {
@@ -121,29 +73,13 @@ describe('Bitails', () => {
       expect(rawTx).toBe(SAMPLE_RAW_TX_HEX)
     })
 
-    it('falls back to WhatsOnChain when Bitails returns non-OK', async () => {
+    it('throws when Bitails returns non-OK', async () => {
       server.use(
         http.get(`${BITAILS_URL}/download/tx/:txid/hex`, () =>
-          new HttpResponse(null, { status: 404 })
-        ),
-        http.get(`${WOC_URL}/v1/bsv/main/tx/:txid/hex`, () =>
-          new HttpResponse('woc-raw-tx-hex', { headers: { 'Content-Type': 'text/plain' } })
-        )
-      )
-      const rawTx = await bitails.fetchRawTx('missing-txid')
-      expect(rawTx).toBe('woc-raw-tx-hex')
-    })
-
-    it('throws when both Bitails and WhatsOnChain fail', async () => {
-      server.use(
-        http.get(`${BITAILS_URL}/download/tx/:txid/hex`, () =>
-          new HttpResponse(null, { status: 404 })
-        ),
-        http.get(`${WOC_URL}/v1/bsv/main/tx/:txid/hex`, () =>
           new HttpResponse(null, { status: 404, statusText: 'Not Found' })
         )
       )
-      await expect(bitails.fetchRawTx('missing-txid')).rejects.toThrow('Failed to fetch raw transaction')
+      await expect(bitails.fetchRawTx('missing-txid')).rejects.toThrow('Bitails failed to fetch raw transaction')
     })
   })
 
