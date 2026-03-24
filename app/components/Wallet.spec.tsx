@@ -67,7 +67,8 @@ describe('Wallet component', () => {
   it('renders without crashing', async () => {
     const { default: WalletComponent } = await import('./Wallet')
     render(<WalletComponent />)
-    expect(document.body).toBeTruthy()
+    // Wait for sync to complete so async state updates don't leak out of act()
+    await waitFor(() => expect(screen.getByText(/Migration completed/i)).toBeInTheDocument(), { timeout: 5000 })
   })
 
   it('shows My Wallet heading', async () => {
@@ -81,7 +82,9 @@ describe('Wallet component', () => {
   it('displays balance section', async () => {
     const { default: WalletComponent } = await import('./Wallet')
     render(<WalletComponent />)
-    expect(screen.getByText('My Wallet')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByText('My Wallet')).toBeInTheDocument()
+    })
   })
 
   it('shows Send All button when UTXOs are present', async () => {
