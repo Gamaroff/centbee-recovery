@@ -4,6 +4,7 @@ import { HD, Mnemonic, Transaction, P2PKH, SatoshisPerKilobyte } from '@bsv/sdk'
 import Bitails from './Bitails'
 import { WalletCache } from './walletCache'
 import { Utxo } from './types/utxo'
+import { SyncProgress } from './types/syncProgress'
 import { detectMnemonicLanguage, MnemonicLanguage } from './detectMnemonicLanguage'
 import { chineseSimplifiedWordList } from './wordlists/chinese-simplified'
 import { frenchWordList } from './wordlists/french'
@@ -211,19 +212,7 @@ export function clearWallet(): void {
  * @returns All discovered UTXOs with their derivation paths attached
  * @throws If no wallet singleton exists (call `importWallet` first)
  */
-export interface SyncProgress {
-  message: string
-  /** Total UTXOs found so far */
-  utxosFound: number
-  /** Total satoshis found so far */
-  totalSatoshis: number
-  /** Total addresses checked so far */
-  totalAddressesScanned: number
-  /** Set after each batch completes — accumulate these in the UI for a scan log */
-  logEntry?: string
-  /** True while waiting on a 429 retry */
-  rateLimited?: boolean
-}
+export type { SyncProgress }
 
 export async function syncWallet(
   gapLimit = 3500,
