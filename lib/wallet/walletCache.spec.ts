@@ -34,7 +34,7 @@ describe('WalletCache', () => {
       expect(cache.getTransactionById(txid)).toBeDefined()
     })
 
-    it('overwrites existing entry for same txid', () => {
+    it('is idempotent when storing the same transaction twice', () => {
       const tx = Transaction.fromHex(SAMPLE_RAW_TX_HEX)
       cache.setTransaction(tx)
       cache.setTransaction(tx)
@@ -42,11 +42,9 @@ describe('WalletCache', () => {
       expect(cache.getTransactionById(txid)).toBeDefined()
     })
 
-    it('stores multiple transactions independently', () => {
+    it('does not make unrelated txids retrievable', () => {
       const tx = Transaction.fromHex(SAMPLE_RAW_TX_HEX)
       cache.setTransaction(tx)
-      const txid = tx.id('hex')
-      expect(cache.getTransactionById(txid)).toBeDefined()
       expect(cache.getTransactionById('other-txid')).toBeUndefined()
     })
   })

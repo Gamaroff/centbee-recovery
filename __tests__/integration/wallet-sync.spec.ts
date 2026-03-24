@@ -21,11 +21,27 @@ describe('Wallet sync integration', () => {
     expect(address.length).toBeGreaterThan(20)
   })
 
-  it('syncWallet returns all UTXOs found across batches', async () => {
+  it('syncWallet accumulates UTXOs found across multiple batches', async () => {
     importWallet(TEST_MNEMONIC, TEST_PIN)
-    // Use tiny gap limit (25) so we only scan one batch and test finishes fast
+    let callCount = 0
+    server.use(
+      http.post('https://api.bitails.io/address/unspent/multi', async ({ request }) => {
+        const body = await (request.json() as Promise<{ addresses: string[] }>)
+        callCount++
+        return HttpResponse.json(
+          body.addresses.map((address, i) => ({
+            address,
+            // Return 1 UTXO in the first two batches, then empty to terminate
+            unspent:
+              callCount <= 2 && i === 0
+                ? [{ txid: `batch${callCount}txid`, vout: 0, satoshis: 100000, blockheight: 700000 }]
+                : [],
+          }))
+        )
+      })
+    )
     const utxos = await syncWallet(25, 25)
-    expect(Array.isArray(utxos)).toBe(true)
+    expect(utxos.length).toBeGreaterThanOrEqual(2)
   })
 
   it('all returned UTXOs have derivation paths set', async () => {

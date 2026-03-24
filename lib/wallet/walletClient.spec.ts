@@ -132,9 +132,24 @@ describe('WalletClient', () => {
 
     it('returns UTXOs when API finds funds', async () => {
       importWallet(TEST_MNEMONIC, TEST_PIN)
-      // Default MSW handler returns 1 UTXO per batch
+      let callCount = 0
+      server.use(
+        http.post('https://api.bitails.io/address/unspent/multi', async ({ request }) => {
+          const body = await (request.json() as Promise<{ addresses: string[] }>)
+          callCount++
+          return HttpResponse.json(
+            body.addresses.map((address, i) => ({
+              address,
+              unspent:
+                callCount === 1 && i === 0
+                  ? [{ txid: 'aabbcc', vout: 0, satoshis: 100000, blockheight: 700000 }]
+                  : [],
+            }))
+          )
+        })
+      )
       const utxos = await syncWallet(25, 25)
-      expect(utxos.length).toBeGreaterThanOrEqual(0)
+      expect(utxos.length).toBeGreaterThan(0)
     })
   })
 })
