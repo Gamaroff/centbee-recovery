@@ -42,13 +42,41 @@ describe('WhatsOnChain', () => {
   })
 
   describe('broadcast', () => {
-    it('throws unsupported error', async () => {
+    it('returns BroadcastResponse with txid on success', async () => {
       const { Transaction } = await import('@bsv/sdk')
       const { SAMPLE_RAW_TX_HEX } = await import('../test-fixtures')
       const tx = Transaction.fromHex(SAMPLE_RAW_TX_HEX)
-      await expect(woc.broadcast(tx)).rejects.toThrow(
-        'WhatsOnChain does not support broadcasting'
+      server.use(
+        http.post(`${WOC_URL}/tx/raw`, () =>
+          new HttpResponse('"abc123txid"', { headers: { 'Content-Type': 'text/plain' } })
+        )
       )
+      const result = await woc.broadcast(tx)
+      expect(result).toMatchObject({ txid: 'abc123txid' })
+    })
+
+    it('returns BroadcastFailure on non-OK response', async () => {
+      const { Transaction } = await import('@bsv/sdk')
+      const { SAMPLE_RAW_TX_HEX } = await import('../test-fixtures')
+      const tx = Transaction.fromHex(SAMPLE_RAW_TX_HEX)
+      server.use(
+        http.post(`${WOC_URL}/tx/raw`, () =>
+          new HttpResponse('Transaction already in mempool', { status: 400 })
+        )
+      )
+      const result = await woc.broadcast(tx)
+      expect(result).toMatchObject({ code: '400', description: 'Transaction already in mempool' })
+    })
+
+    it('returns BroadcastFailure on network error', async () => {
+      const { Transaction } = await import('@bsv/sdk')
+      const { SAMPLE_RAW_TX_HEX } = await import('../test-fixtures')
+      const tx = Transaction.fromHex(SAMPLE_RAW_TX_HEX)
+      server.use(
+        http.post(`${WOC_URL}/tx/raw`, () => HttpResponse.error())
+      )
+      const result = await woc.broadcast(tx)
+      expect(result).toMatchObject({ code: 'unknown' })
     })
   })
 })

@@ -4,7 +4,7 @@ import { server } from '../mocks/server'
 import Bitails from './Bitails'
 import WhatsOnChain from './WhatsOnChain'
 import DelegatedIndexerService from './DelegatedIndexerService'
-import { SAMPLE_UTXO_RESPONSE } from '../test-fixtures'
+import { SAMPLE_UTXO_RESPONSE, SAMPLE_RAW_TX_HEX } from '../test-fixtures'
 
 const BITAILS_URL = 'https://api.bitails.io'
 const WOC_URL = 'https://api.whatsonchain.com'
@@ -97,6 +97,48 @@ describe('DelegatedIndexerService', () => {
       await vi.runAllTimersAsync()
       await expectation
       vi.useRealTimers()
+    })
+  })
+
+  describe('broadcast', () => {
+    it('returns BroadcastResponse from primary on success', async () => {
+      const { Transaction } = await import('@bsv/sdk')
+      const tx = Transaction.fromHex(SAMPLE_RAW_TX_HEX)
+      server.use(
+        http.post(`${BITAILS_URL}/tx/broadcast`, () =>
+          HttpResponse.json({ txid: 'primary-txid' })
+        )
+      )
+      const result = await makeService().broadcast(tx)
+      expect(result).toMatchObject({ txid: 'primary-txid' })
+    })
+
+    it('falls back to WhatsOnChain when primary returns BroadcastFailure', async () => {
+      const { Transaction } = await import('@bsv/sdk')
+      const tx = Transaction.fromHex(SAMPLE_RAW_TX_HEX)
+      server.use(
+        http.post(`${BITAILS_URL}/tx/broadcast`, () =>
+          HttpResponse.json({ error: { code: 500, message: 'Bitails error' } })
+        ),
+        http.post(`${WOC_URL}/v1/bsv/main/tx/raw`, () =>
+          new HttpResponse('"fallback-txid"', { headers: { 'Content-Type': 'text/plain' } })
+        )
+      )
+      const result = await makeService().broadcast(tx)
+      expect(result).toMatchObject({ txid: 'fallback-txid' })
+    })
+
+    it('falls back to WhatsOnChain when primary throws', async () => {
+      const { Transaction } = await import('@bsv/sdk')
+      const tx = Transaction.fromHex(SAMPLE_RAW_TX_HEX)
+      server.use(
+        http.post(`${BITAILS_URL}/tx/broadcast`, () => HttpResponse.error()),
+        http.post(`${WOC_URL}/v1/bsv/main/tx/raw`, () =>
+          new HttpResponse('"fallback-txid"', { headers: { 'Content-Type': 'text/plain' } })
+        )
+      )
+      const result = await makeService().broadcast(tx)
+      expect(result).toMatchObject({ txid: 'fallback-txid' })
     })
   })
 })
