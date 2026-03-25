@@ -98,7 +98,7 @@ describe('DelegatedIndexerService', () => {
       await vi.runAllTimersAsync()
       const utxos = await promise
       expect(utxos).toHaveLength(1)
-      expect(utxos[0]).toMatchObject({ txid: 'aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899' })
+      expect(utxos[0]).toMatchObject({ txid: 'd75485c2329a533fd06b5f55a3f21644741c0258f2974d5d989e946a0bb4357f' })
       vi.useRealTimers()
     })
 

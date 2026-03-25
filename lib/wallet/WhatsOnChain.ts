@@ -49,7 +49,7 @@ export default class WhatsOnChain implements IndexerService {
         return data
             .filter((item: any) => item !== null)
             .flatMap((item: any) =>
-                (item.unspent ?? []).map((utxo: any): Utxo => ({
+                (item.result ?? []).map((utxo: any): Utxo => ({
                     address: item.address,
                     txid: utxo.tx_hash,
                     vout: utxo.tx_pos,

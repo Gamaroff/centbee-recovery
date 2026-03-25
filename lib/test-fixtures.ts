@@ -35,17 +35,19 @@ export const SAMPLE_TXID = 'aabbccddeeff00112233445566778899aabbccddeeff00112233
 export const SAMPLE_WOC_UTXO_RESPONSE = [
   {
     address: '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa',
-    unspent: [
+    result: [
       {
-        tx_hash: 'aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899',
+        tx_hash: 'd75485c2329a533fd06b5f55a3f21644741c0258f2974d5d989e946a0bb4357f',
         tx_pos: 0,
         value: 100000,
         height: 700000,
       },
     ],
+    error: '',
   },
   {
     address: '12cbQLTFMXRnSzktFkuoG3eHoMeFtpTu3S',
-    unspent: [],
+    result: [],
+    error: '',
   },
 ]

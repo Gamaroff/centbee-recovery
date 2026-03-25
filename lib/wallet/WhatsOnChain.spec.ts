@@ -48,7 +48,7 @@ describe('WhatsOnChain', () => {
       expect(utxos).toHaveLength(1)
       expect(utxos[0]).toMatchObject({
         address: '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa',
-        txid: 'aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899',
+        txid: 'd75485c2329a533fd06b5f55a3f21644741c0258f2974d5d989e946a0bb4357f',
         vout: 0,
         satoshis: 100000,
         height: 700000,
@@ -73,9 +73,10 @@ describe('WhatsOnChain', () => {
             null,
             {
               address: '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa',
-              unspent: [
+              result: [
                 { tx_hash: 'aabb', tx_pos: 0, value: 5000, height: 800000 },
               ],
+              error: '',
             },
             null,
           ])
