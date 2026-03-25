@@ -7,7 +7,7 @@ import { IndexerService } from './types/indexerService'
  *
  * - fetchRawTx: tries primary, falls back to secondary on failure
  * - fetchUtxosForAddress: delegates to primary with exponential backoff on 429 rate limits
- * - broadcast: delegates to primary
+ * - broadcast: tries primary, falls back to secondary on failure or broadcast failure
  */
 export default class DelegatedIndexerService implements IndexerService {
     constructor(
@@ -50,6 +50,12 @@ export default class DelegatedIndexerService implements IndexerService {
     }
 
     async broadcast(tx: Transaction): Promise<BroadcastResponse | BroadcastFailure> {
-        return this.primary.broadcast(tx)
+        try {
+            const result = await this.primary.broadcast(tx)
+            if ('txid' in result) return result
+            return await this.fallback.broadcast(tx)
+        } catch {
+            return await this.fallback.broadcast(tx)
+        }
     }
 }
