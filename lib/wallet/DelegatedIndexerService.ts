@@ -38,7 +38,8 @@ export default class DelegatedIndexerService implements IndexerService {
                 return utxos
             } catch (e: any) {
                 const isRateLimited = e?.message?.includes('Rate limited')
-                if (!isRateLimited || attempt === maxRetries) throw e
+                if (!isRateLimited) return await this.fallback.fetchUtxosForAddress(addresses)
+                if (attempt === maxRetries) return await this.fallback.fetchUtxosForAddress(addresses)
 
                 onRateLimit?.(attempt + 1, delay)
                 await new Promise(resolve => setTimeout(resolve, delay))
@@ -46,7 +47,7 @@ export default class DelegatedIndexerService implements IndexerService {
             }
         }
         // Unreachable: loop always returns or throws before exhausting retries
-        throw new Error('Rate limit retries exhausted')
+        return await this.fallback.fetchUtxosForAddress(addresses)
     }
 
     async broadcast(tx: Transaction): Promise<BroadcastResponse | BroadcastFailure> {

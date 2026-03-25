@@ -4,7 +4,7 @@ import { IndexerService } from './types/indexerService'
 
 /**
  * WhatsOnChain implementation of IndexerService.
- * Supports raw transaction fetching and broadcasting. UTXO fetching is not supported.
+ * Supports raw transaction fetching, broadcasting, and bulk UTXO fetching.
  */
 export default class WhatsOnChain implements IndexerService {
     readonly URL = 'https://api.whatsonchain.com/v1/bsv/main'
@@ -19,8 +19,27 @@ export default class WhatsOnChain implements IndexerService {
         return (await response.text()).trim()
     }
 
-    async fetchUtxosForAddress(_addresses: string[]): Promise<Utxo[]> {
-        throw new Error('WhatsOnChain does not support UTXO fetching')
+    async fetchUtxosForAddress(addresses: string[]): Promise<Utxo[]> {
+        const response = await window.fetch(`${this.URL}/addresses/unspent`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ addresses }),
+        })
+
+        if (!response.ok) {
+            throw new Error(`WhatsOnChain failed to fetch UTXOs: ${response.statusText}`)
+        }
+
+        const data = await response.json()
+        return data.flatMap((item: any) =>
+            (item.unspent ?? []).map((utxo: any): Utxo => ({
+                address: item.address,
+                txid: utxo.tx_hash,
+                vout: utxo.tx_pos,
+                satoshis: utxo.value,
+                height: utxo.height,
+            }))
+        )
     }
 
     async broadcast(tx: Transaction): Promise<BroadcastResponse | BroadcastFailure> {
