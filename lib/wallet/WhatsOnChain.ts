@@ -19,7 +19,21 @@ export default class WhatsOnChain implements IndexerService {
         return (await response.text()).trim()
     }
 
+    // WoC bulk endpoint supports max 20 addresses per request and returns max 20 UTXOs
+    // per address with no pagination support. Addresses with >20 UTXOs will be truncated.
+    private static readonly MAX_ADDRESSES_PER_REQUEST = 20
+
     async fetchUtxosForAddress(addresses: string[]): Promise<Utxo[]> {
+        const allUtxos: Utxo[] = []
+        for (let i = 0; i < addresses.length; i += WhatsOnChain.MAX_ADDRESSES_PER_REQUEST) {
+            const chunk = addresses.slice(i, i + WhatsOnChain.MAX_ADDRESSES_PER_REQUEST)
+            const utxos = await this.fetchChunk(chunk)
+            allUtxos.push(...utxos)
+        }
+        return allUtxos
+    }
+
+    private async fetchChunk(addresses: string[]): Promise<Utxo[]> {
         const response = await window.fetch(`${this.URL}/addresses/unspent`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -31,15 +45,18 @@ export default class WhatsOnChain implements IndexerService {
         }
 
         const data = await response.json()
-        return data.flatMap((item: any) =>
-            (item.unspent ?? []).map((utxo: any): Utxo => ({
-                address: item.address,
-                txid: utxo.tx_hash,
-                vout: utxo.tx_pos,
-                satoshis: utxo.value,
-                height: utxo.height,
-            }))
-        )
+        if (!Array.isArray(data)) return []
+        return data
+            .filter((item: any) => item !== null)
+            .flatMap((item: any) =>
+                (item.unspent ?? []).map((utxo: any): Utxo => ({
+                    address: item.address,
+                    txid: utxo.tx_hash,
+                    vout: utxo.tx_pos,
+                    satoshis: utxo.value,
+                    height: utxo.height,
+                }))
+            )
     }
 
     async broadcast(tx: Transaction): Promise<BroadcastResponse | BroadcastFailure> {
