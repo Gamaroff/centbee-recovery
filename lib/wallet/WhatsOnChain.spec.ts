@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { server } from '../mocks/server'
 import WhatsOnChain from './WhatsOnChain'
@@ -64,6 +64,74 @@ describe('WhatsOnChain', () => {
       await expect(
         woc.fetchUtxosForAddress(['1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'])
       ).rejects.toThrow('WhatsOnChain failed to fetch UTXOs')
+    })
+
+    it('handles null entries in response without throwing', async () => {
+      server.use(
+        http.post(`${WOC_URL}/addresses/unspent`, () =>
+          HttpResponse.json([
+            null,
+            {
+              address: '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa',
+              unspent: [
+                { tx_hash: 'aabb', tx_pos: 0, value: 5000, height: 800000 },
+              ],
+            },
+            null,
+          ])
+        )
+      )
+      const utxos = await woc.fetchUtxosForAddress(['1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'])
+      expect(utxos).toHaveLength(1)
+      expect(utxos[0]).toMatchObject({ address: '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa', satoshis: 5000 })
+    })
+
+    it('splits >20 addresses into multiple requests with correct chunk sizes', async () => {
+      const requestBodies: string[][] = []
+      server.use(
+        http.post(`${WOC_URL}/addresses/unspent`, async ({ request }) => {
+          const body = await request.json() as { addresses: string[] }
+          requestBodies.push(body.addresses)
+          return HttpResponse.json([])
+        })
+      )
+
+      const addresses = Array.from({ length: 25 }, (_, i) => `addr${i}`)
+      await woc.fetchUtxosForAddress(addresses)
+
+      expect(requestBodies).toHaveLength(2)
+      expect(requestBodies[0]).toHaveLength(20)
+      expect(requestBodies[1]).toHaveLength(5)
+    })
+
+    it('sends exactly 1 request for exactly 20 addresses', async () => {
+      const handler = vi.fn(() => HttpResponse.json([]))
+      server.use(http.post(`${WOC_URL}/addresses/unspent`, handler))
+
+      const addresses = Array.from({ length: 20 }, (_, i) => `addr${i}`)
+      await woc.fetchUtxosForAddress(addresses)
+
+      expect(handler).toHaveBeenCalledTimes(1)
+    })
+
+    it('returns empty array for empty input without making requests', async () => {
+      const handler = vi.fn(() => HttpResponse.json([]))
+      server.use(http.post(`${WOC_URL}/addresses/unspent`, handler))
+
+      const utxos = await woc.fetchUtxosForAddress([])
+
+      expect(utxos).toEqual([])
+      expect(handler).not.toHaveBeenCalled()
+    })
+
+    it('returns empty array when API response is not an array', async () => {
+      server.use(
+        http.post(`${WOC_URL}/addresses/unspent`, () =>
+          HttpResponse.json({ error: 'unexpected format' })
+        )
+      )
+      const utxos = await woc.fetchUtxosForAddress(['1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'])
+      expect(utxos).toEqual([])
     })
   })
 
