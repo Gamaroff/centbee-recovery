@@ -4,7 +4,7 @@ import { server } from '../mocks/server'
 import Bitails from './Bitails'
 import WhatsOnChain from './WhatsOnChain'
 import DelegatedIndexerService from './DelegatedIndexerService'
-import { SAMPLE_UTXO_RESPONSE, SAMPLE_RAW_TX_HEX } from '../test-fixtures'
+import { SAMPLE_UTXO_RESPONSE, SAMPLE_WOC_UTXO_RESPONSE, SAMPLE_RAW_TX_HEX } from '../test-fixtures'
 
 const BITAILS_URL = 'https://api.bitails.io'
 const WOC_URL = 'https://api.whatsonchain.com'
@@ -83,17 +83,38 @@ describe('DelegatedIndexerService', () => {
       expect(cleared).toBe(true)
     })
 
-    it('throws after max retries exceeded', async () => {
+    it('falls back to WhatsOnChain after max Bitails retries exceeded', async () => {
       vi.useFakeTimers()
       server.use(
         http.post(`${BITAILS_URL}/address/unspent/multi`, () =>
           new HttpResponse(null, { status: 429 })
+        ),
+        http.post(`${WOC_URL}/v1/bsv/main/addresses/unspent`, () =>
+          HttpResponse.json(SAMPLE_WOC_UTXO_RESPONSE)
+        )
+      )
+      const promise = makeService().fetchUtxosForAddress(['1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'])
+      // Advance through all retry delays (1s, 2s, 4s, 8s, 16s)
+      await vi.runAllTimersAsync()
+      const utxos = await promise
+      expect(utxos).toHaveLength(1)
+      expect(utxos[0]).toMatchObject({ txid: 'aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899' })
+      vi.useRealTimers()
+    })
+
+    it('throws when both Bitails and WhatsOnChain fail for UTXOs', async () => {
+      vi.useFakeTimers()
+      server.use(
+        http.post(`${BITAILS_URL}/address/unspent/multi`, () =>
+          new HttpResponse(null, { status: 429 })
+        ),
+        http.post(`${WOC_URL}/v1/bsv/main/addresses/unspent`, () =>
+          new HttpResponse(null, { status: 503, statusText: 'Service Unavailable' })
         )
       )
       const promise = makeService().fetchUtxosForAddress(['1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'])
       // Attach rejection handler before advancing timers to prevent unhandled rejection
-      const expectation = expect(promise).rejects.toThrow('Rate limited by Bitails')
-      // Advance through all retry delays (1s, 2s, 4s, 8s, 16s)
+      const expectation = expect(promise).rejects.toThrow('WhatsOnChain failed to fetch UTXOs')
       await vi.runAllTimersAsync()
       await expectation
       vi.useRealTimers()

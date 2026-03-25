@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { server } from '../mocks/server'
 import WhatsOnChain from './WhatsOnChain'
+import { SAMPLE_WOC_UTXO_RESPONSE } from '../test-fixtures'
 
 const WOC_URL = 'https://api.whatsonchain.com/v1/bsv/main'
 
@@ -34,10 +35,35 @@ describe('WhatsOnChain', () => {
   })
 
   describe('fetchUtxosForAddress', () => {
-    it('throws unsupported error', async () => {
-      await expect(woc.fetchUtxosForAddress(['1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'])).rejects.toThrow(
-        'WhatsOnChain does not support UTXO fetching'
+    it('returns mapped UTXOs on success', async () => {
+      server.use(
+        http.post(`${WOC_URL}/addresses/unspent`, () =>
+          HttpResponse.json(SAMPLE_WOC_UTXO_RESPONSE)
+        )
       )
+      const utxos = await woc.fetchUtxosForAddress([
+        '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa',
+        '12cbQLTFMXRnSzktFkuoG3eHoMeFtpTu3S',
+      ])
+      expect(utxos).toHaveLength(1)
+      expect(utxos[0]).toMatchObject({
+        address: '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa',
+        txid: 'aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899',
+        vout: 0,
+        satoshis: 100000,
+        height: 700000,
+      })
+    })
+
+    it('throws when API returns non-OK', async () => {
+      server.use(
+        http.post(`${WOC_URL}/addresses/unspent`, () =>
+          new HttpResponse(null, { status: 503, statusText: 'Service Unavailable' })
+        )
+      )
+      await expect(
+        woc.fetchUtxosForAddress(['1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'])
+      ).rejects.toThrow('WhatsOnChain failed to fetch UTXOs')
     })
   })
 
